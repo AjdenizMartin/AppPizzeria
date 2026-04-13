@@ -2,245 +2,208 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pizzeria App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pizzeria Delivery</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles/shop.css">
 </head>
 
-<body id="body" class="transition">
-
-<!-- ================= NAVBAR ================= -->
-<div class="flex justify-between items-center p-4" id="navbar">
-
-  <h1 class="text-xl font-bold">🍕 Pizzeria</h1>
-
-  <button onclick="toggleTheme()" id="themeBtn"
-  class="flex items-center gap-2 px-3 py-1 rounded border
-         hover:bg-gray-200 dark:hover:bg-gray-700 transition">
-  <span id="themeIcon">🌙</span>
-  <span id="themeText">Dark</span>
-</button>
-
-</div>
-
-<!-- ================= CATEGORIES ================= -->
-<div id="categories"
-  class="flex gap-3 overflow-x-auto px-4 mb-4"></div>
-
-<!-- ================= MAIN ================= -->
-<div class="flex">
-
-  <!-- MENU -->
-  <div id="menu" class="w-2/3 p-4"></div>
-
-  <!-- CART -->
-  <div id="cartPanel" class="w-1/3 p-4"></div>
-
-</div>
-
-<script>
-
-// ================= STATE =================
-let cart = [];
-let darkMode = true;
-
-// ================= THEME SYSTEM =================
-function getTheme() {
-  return darkMode
-    ? {
-        body: "bg-black text-white",
-        card: "bg-gray-800 text-white",
-        section: "text-white",
-        button: "bg-gray-700 hover:bg-orange-500 text-white",
-        panel: "bg-gray-900 text-white",
-        input: "bg-gray-700 text-white"
-      }
-    : {
-        body: "bg-gray-100 text-black",
-        card: "bg-white text-black border",
-        section: "text-black",
-        button: "bg-gray-200 hover:bg-orange-400 text-black",
-        panel: "bg-white text-black border",
-        input: "bg-white text-black border"
-      };
-}
-
-function applyTheme() {
-  const theme = getTheme();
-
-  const body = document.getElementById("body");
-  const cart = document.getElementById("cartPanel");
-  const navbar = document.getElementById("navbar");
-
-  const icon = document.getElementById("themeIcon");
-  const text = document.getElementById("themeText");
-
-  body.className = theme.body + " transition";
-
-  cart.className = "w-1/3 p-4 " + theme.panel;
-  navbar.className = "flex justify-between items-center p-4 " + theme.panel;
-
-  if (darkMode) {
-    icon.innerText = "🌙";
-    text.innerText = "Dark";
-  } else {
-    icon.innerText = "☀️";
-    text.innerText = "Light";
-  }
-}
-
-// ================= TOGGLE =================
-function toggleTheme() {
-  darkMode = !darkMode;
-  applyTheme();
-  loadProducts();
-  renderCart();
-}
-
-// ================= LOAD PRODUCTS =================
-async function loadProducts() {
-
-  const res = await fetch("http://127.0.0.1:8000/products");
-  const products = await res.json();
-
-  const theme = getTheme();
-
-  const menu = document.getElementById("menu");
-  const categoriesDiv = document.getElementById("categories");
-
-  menu.innerHTML = "";
-  categoriesDiv.innerHTML = "";
-
-  const categories = [...new Set(products.map(p => p.category))];
-
-  // CATEGORY BUTTONS
-  categories.forEach(cat => {
-
-    const btn = document.createElement("button");
-
-    btn.innerText = cat;
-
-    btn.className = `
-      px-4 py-2 rounded transition
-      ${theme.button}
-    `;
-
-    btn.onclick = () => {
-      document.getElementById(cat).scrollIntoView({
-        behavior: "smooth"
-      });
-    };
-
-    categoriesDiv.appendChild(btn);
-  });
-
-  // SECTIONS
-  categories.forEach(cat => {
-
-    const section = document.createElement("div");
-    section.id = cat;
-
-    section.innerHTML = `
-      <h2 class="text-xl mt-6 mb-3 ${theme.section}">${cat}</h2>
-      <div class="grid grid-cols-2 gap-4" id="section-${cat}"></div>
-    `;
-
-    menu.appendChild(section);
-  });
-
-  // PRODUCTS
-  products.forEach(p => {
-
-    const card = document.createElement("div");
-
-    card.className = `
-      ${theme.card}
-      p-4 rounded
-      hover:scale-105 hover:shadow-xl
-      transition duration-200
-    `;
-
-    card.innerHTML = `
-      <h3 class="font-bold">${p.name}</h3>
-      <p class="text-sm opacity-70">${p.description || ""}</p>
-      <p class="mt-2 font-semibold">€${p.price}</p>
-
-      <button onclick="addToCart(${p.id}, '${p.name}', ${p.price})"
-        class="bg-orange-500 px-3 py-1 rounded mt-2 hover:bg-orange-600">
-        Add +
-      </button>
-    `;
-
-    document.getElementById(`section-${p.category}`).appendChild(card);
-  });
-
-}
-
-// ================= CART =================
-function addToCart(id, name, price) {
-  cart.push({ id, name, price });
-  renderCart();
-}
-
-function renderCart() {
-
-  const cartDiv = document.getElementById("cartPanel");
-  const theme = getTheme();
-
-  let total = 0;
-
-  let html = `<h2 class="text-xl mb-4">🛒 Basket</h2>`;
-
-  cart.forEach(item => {
-    total += item.price;
-
-    html += `
-      <div class="flex justify-between mb-2">
-        <span>${item.name}</span>
-        <span>€${item.price}</span>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <div class="brand-lockup">
+        <div class="brand-mark">P</div>
+        <div>
+          <p class="eyebrow">Fast delivery marketplace</p>
+          <h1>Pizzeria</h1>
+        </div>
       </div>
-    `;
-  });
 
-  html += `
-    <p class="mt-4 font-bold">Total: €${total}</p>
+      <div class="header-actions">
+        <div class="header-pill">
+          <span class="pill-dot"></span>
+          Delivering in 20-35 min
+        </div>
 
-    <button onclick="checkout()"
-      class="bg-orange-500 w-full mt-4 py-2 rounded hover:scale-105 transition">
-      Place Order
-    </button>
-  `;
+        <button onclick="toggleCart()" class="header-cart-button">
+          <span>Basket</span>
+          <span class="header-cart-count" id="cart-count">0</span>
+        </button>
+      </div>
+    </header>
 
-  cartDiv.innerHTML = html;
-}
+    <main class="main-layout">
+      <section class="hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Trending tonight</p>
+          <h2>Hot pizzas, burger deals and desserts in one slick checkout flow.</h2>
+          <p class="hero-text">
+            Browse a high-converting menu, spot the best-value bundles fast and order in seconds.
+            Built to feel closer to a real delivery app storefront.
+          </p>
 
-// ================= CHECKOUT =================
-async function checkout() {
-  try {
+          <div class="hero-search">
+            <div class="hero-search-label">What are you craving?</div>
+            <input id="search-input" type="search" placeholder="Search pizzas, burgers, chips, desserts...">
+          </div>
 
-    const res = await fetch("http://127.0.0.1:8000/create-checkout-session", {
-      method: "POST"
-    });
+          <div class="hero-actions">
+            <button class="primary-cta" onclick="document.getElementById('featured-section').scrollIntoView({ behavior: 'smooth' })">
+              Explore top picks
+            </button>
+            <button class="secondary-cta" onclick="document.getElementById('menu-section').scrollIntoView({ behavior: 'smooth' })">
+              View full menu
+            </button>
+          </div>
 
-    const data = await res.json();
+          <div class="trust-bar">
+            <div>
+              <strong id="hero-product-count">0</strong>
+              <span>Dishes live</span>
+            </div>
+            <div>
+              <strong>4.8/5</strong>
+              <span>Customer vibe</span>
+            </div>
+            <div>
+              <strong>€2.50</strong>
+              <span>Typical delivery</span>
+            </div>
+          </div>
+        </div>
 
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      alert("Checkout error");
-      console.log(data);
-    }
+        <div class="hero-showcase">
+          <div class="hero-card hero-card-primary">
+            <p class="hero-card-tag">Best Seller</p>
+            <h3>2-for-1 pizza nights and rich sides that feel made for impulse checkout.</h3>
+            <p>Push the most visual, highest-margin items first and keep the path to basket obvious.</p>
+          </div>
 
-  } catch (error) {
-    console.error(error);
-  }
-}
+          <div class="hero-card-grid">
+            <div class="hero-card">
+              <p class="mini-label">Collection</p>
+              <strong>Family deals</strong>
+              <span>Big baskets, smoother upsells.</span>
+            </div>
+            <div class="hero-card accent-card">
+              <p class="mini-label">Late-night hook</p>
+              <strong>Desserts & soft drinks</strong>
+              <span>Perfect add-ons before checkout.</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-// ================= INIT =================
-applyTheme();
-loadProducts();
+      <section class="market-strip">
+        <article>
+          <span class="strip-icon">⚡</span>
+          <div>
+            <strong>Fast re-order feel</strong>
+            <p>Big cards, sharp buttons and no clutter between craving and checkout.</p>
+          </div>
+        </article>
+        <article>
+          <span class="strip-icon">🍕</span>
+          <div>
+            <strong>Commercial hierarchy</strong>
+            <p>Deals, highlights and visual products lead the experience.</p>
+          </div>
+        </article>
+        <article>
+          <span class="strip-icon">🛵</span>
+          <div>
+            <strong>Delivery-first layout</strong>
+            <p>Built to feel familiar to users of major food delivery apps.</p>
+          </div>
+        </article>
+      </section>
 
-</script>
+      <section id="featured-section" class="content-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Popular now</p>
+            <h3>Top picks made to convert</h3>
+          </div>
+          <p>Use these hero cards as the first visual decision point, just like a strong delivery homepage.</p>
+        </div>
+        <div id="featured-grid" class="featured-grid"></div>
+      </section>
 
+      <section class="content-section sticky-filter-wrap">
+        <div class="filter-shell">
+          <div class="filter-intro">
+            <p class="eyebrow">Browse by section</p>
+            <h3>Quick category jump</h3>
+          </div>
+          <div id="categories" class="category-row"></div>
+        </div>
+      </section>
+
+      <section id="menu-section" class="content-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Full menu</p>
+            <h3>Everything available tonight</h3>
+          </div>
+          <p id="search-state">Choose a category or search to narrow the menu instantly.</p>
+        </div>
+        <div id="menu" class="menu-stack"></div>
+      </section>
+    </main>
+  </div>
+
+  <button onclick="toggleCart()" class="floating-cart-button">
+    <span>Open basket</span>
+    <span class="floating-cart-meta"><span id="floating-cart-count">0</span> items</span>
+  </button>
+
+  <div id="overlay" onclick="toggleCart()" class="cart-overlay hidden"></div>
+
+  <aside id="cart" class="cart-drawer cart-hidden">
+    <div class="cart-header">
+      <div>
+        <p class="eyebrow">Your order</p>
+        <h3>Basket summary</h3>
+      </div>
+      <button onclick="toggleCart()" class="cart-close">✕</button>
+    </div>
+
+    <div class="cart-meta-grid">
+      <div>
+        <span>Delivery</span>
+        <strong>20-35 min</strong>
+      </div>
+      <div>
+        <span>Service</span>
+        <strong>Tracked live</strong>
+      </div>
+    </div>
+
+    <div id="cart-items" class="cart-items"></div>
+
+    <div class="cart-summary">
+      <div class="summary-row">
+        <span>Subtotal</span>
+        <strong>€<span id="cart-total">0.00</span></strong>
+      </div>
+      <div class="summary-row muted-row">
+        <span>Delivery fee</span>
+        <strong>€2.50</strong>
+      </div>
+      <div class="summary-row total-row">
+        <span>Total today</span>
+        <strong>€<span id="cart-grand-total">2.50</span></strong>
+      </div>
+
+      <button onclick="checkout()" class="checkout-button">
+        Go to secure checkout
+      </button>
+    </div>
+  </aside>
+
+  <script type="module" src="./js/shop.js"></script>
 </body>
 </html>

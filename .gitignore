@@ -2,15 +2,20 @@
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 
 # Virtual env
 .venv/
+*.egg-info/
 
 # Database
 *.db
 
 # OS
 .DS_Store
+
+# Editor
+.vscode/
 
 # Env
 .env
