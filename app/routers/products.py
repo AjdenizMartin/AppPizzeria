@@ -3,7 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_admin, get_db
 from app.schemas.product import ProductDeleteResponse, ProductRead
-from app.services.product_service import create_product, delete_product, list_products
+from app.services.product_service import (
+    create_product,
+    delete_product,
+    list_products,
+    update_product,
+)
 
 router = APIRouter(tags=["products"])
 
@@ -49,3 +54,30 @@ def delete_product_endpoint(
         raise HTTPException(status_code=404, detail="Product not found")
 
     return {"message": "Deleted"}
+
+
+@router.put("/admin/products/{product_id}", response_model=ProductRead)
+async def update_product_endpoint(
+    product_id: int,
+    name: str = Form(...),
+    price: float = Form(...),
+    category: str = Form(...),
+    description: str = Form(""),
+    file: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+    _current_admin=Depends(get_current_admin),
+):
+    updated_product = await update_product(
+        db=db,
+        product_id=product_id,
+        name=name,
+        price=price,
+        category=category,
+        description=description,
+        file=file,
+    )
+
+    if updated_product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    return updated_product

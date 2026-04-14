@@ -12,6 +12,10 @@ const productForm = document.getElementById("product-form");
 const refreshButton = document.getElementById("refresh-products");
 const logoutButton = document.getElementById("logout-button");
 const productSearchInput = document.getElementById("product-search");
+const productFormMode = document.getElementById("product-form-mode");
+const productFormTitle = document.getElementById("product-form-title");
+const productSubmitButton = document.getElementById("product-submit-button");
+const cancelEditButton = document.getElementById("cancel-edit-button");
 
 const totalProductsStat = document.getElementById("stat-total-products");
 const totalCategoriesStat = document.getElementById("stat-total-categories");
@@ -20,6 +24,7 @@ const sessionModeStat = document.getElementById("stat-session-mode");
 let currentUser = null;
 let products = [];
 let searchTerm = "";
+let editingProductId = null;
 
 function formatApiError(data, fallbackMessage) {
   if (Array.isArray(data?.detail)) {
@@ -127,19 +132,65 @@ function renderProducts() {
 
         <div class="product-card-footer">
           <span class="badge">Product ID ${product.id}</span>
-          <button
-            type="button"
-            data-product-id="${product.id}"
-            class="delete-product"
-          >
-            Delete
-          </button>
+          <div class="product-actions">
+            <button
+              type="button"
+              data-product-id="${product.id}"
+              class="edit-product ghost-button"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              data-product-id="${product.id}"
+              class="delete-product"
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     `;
 
     productsContainer.appendChild(element);
   });
+}
+
+function setFormModeToCreate() {
+  editingProductId = null;
+  productFormMode.textContent = "Create item";
+  productFormTitle.textContent = "New product";
+  productSubmitButton.textContent = "Publish product";
+  cancelEditButton.classList.add("hidden");
+}
+
+function setFormModeToEdit(product) {
+  editingProductId = product.id;
+  productFormMode.textContent = "Edit item";
+  productFormTitle.textContent = `Edit product #${product.id}`;
+  productSubmitButton.textContent = "Save changes";
+  cancelEditButton.classList.remove("hidden");
+
+  document.getElementById("name").value = product.name;
+  document.getElementById("price").value = String(product.price);
+  document.getElementById("category").value = product.category;
+  document.getElementById("description").value = product.description || "";
+  document.getElementById("image").value = "";
+}
+
+function buildProductFormData() {
+  const formData = new FormData();
+  formData.append("name", document.getElementById("name").value.trim());
+  formData.append("price", document.getElementById("price").value);
+  formData.append("category", document.getElementById("category").value);
+  formData.append("description", document.getElementById("description").value.trim());
+
+  const imageFile = document.getElementById("image").files[0];
+  if (imageFile) {
+    formData.append("file", imageFile);
+  }
+
+  return formData;
 }
 
 async function loadProducts() {
@@ -231,20 +282,34 @@ loginForm.addEventListener("submit", async (event) => {
 productForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const formData = new FormData(productForm);
+  const formData = buildProductFormData();
+  const isEditing = editingProductId !== null;
+  const targetPath = isEditing
+    ? `/admin/products/${editingProductId}`
+    : "/admin/products";
+  const method = isEditing ? "PUT" : "POST";
 
-  const { response, data } = await apiRequest("/admin/products", {
-    method: "POST",
+  const { response, data } = await apiRequest(targetPath, {
+    method,
     body: formData,
   });
 
   if (!response.ok) {
-    setMessage(formatApiError(data, "Could not create product"), "error");
+    setMessage(
+      formatApiError(data, isEditing ? "Could not update product" : "Could not create product"),
+      "error",
+    );
     return;
   }
 
   productForm.reset();
-  setMessage(`Product "${data.name}" created`, "success");
+  setFormModeToCreate();
+  setMessage(
+    isEditing
+      ? `Product "${data.name}" updated`
+      : `Product "${data.name}" created`,
+    "success",
+  );
   await loadProducts();
 });
 
@@ -256,8 +321,15 @@ refreshButton.addEventListener("click", async () => {
 logoutButton.addEventListener("click", () => {
   clearAuthToken();
   currentUser = null;
+  setFormModeToCreate();
   renderSession();
   setMessage("Session closed", "neutral");
+});
+
+cancelEditButton.addEventListener("click", () => {
+  productForm.reset();
+  setFormModeToCreate();
+  setMessage("Edit cancelled", "neutral");
 });
 
 productSearchInput.addEventListener("input", (event) => {
@@ -266,6 +338,23 @@ productSearchInput.addEventListener("input", (event) => {
 });
 
 productsContainer.addEventListener("click", async (event) => {
+  const editButton = event.target.closest(".edit-product");
+
+  if (editButton) {
+    const productId = Number(editButton.dataset.productId);
+    const product = products.find((item) => item.id === productId);
+
+    if (!product) {
+      setMessage("Product not found in current list", "error");
+      return;
+    }
+
+    setFormModeToEdit(product);
+    setMessage(`Editing "${product.name}"`, "neutral");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
   const deleteButton = event.target.closest(".delete-product");
 
   if (!deleteButton) {
@@ -283,10 +372,16 @@ productsContainer.addEventListener("click", async (event) => {
     return;
   }
 
+  if (editingProductId === Number(productId)) {
+    productForm.reset();
+    setFormModeToCreate();
+  }
+
   setMessage("Product deleted", "success");
   await loadProducts();
 });
 
+setFormModeToCreate();
 renderSession();
 loadProducts();
 restoreSession();

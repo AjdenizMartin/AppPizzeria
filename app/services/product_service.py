@@ -34,6 +34,36 @@ async def create_product(
     return product
 
 
+async def update_product(
+    db: Session,
+    product_id: int,
+    name: str,
+    price: float,
+    category: str,
+    description: str = "",
+    file=None,
+) -> models.Product | None:
+    product = db.get(models.Product, product_id)
+
+    if product is None:
+        return None
+
+    product.name = name
+    product.price = price
+    product.category = category
+    product.description = description
+
+    if file is not None:
+        new_image_url = save_product_image(file)
+        delete_product_image(product.image_url)
+        product.image_url = new_image_url
+
+    db.commit()
+    db.refresh(product)
+
+    return product
+
+
 def delete_product(db: Session, product_id: int) -> bool:
     product = db.get(models.Product, product_id)
 

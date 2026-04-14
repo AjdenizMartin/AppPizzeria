@@ -73,3 +73,62 @@ def test_create_product_requires_admin_auth(client):
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Authentication required"}
+
+
+def test_update_product(client, admin_auth_headers):
+    create_response = client.post(
+        "/admin/products",
+        data={
+            "name": "Pepperoni",
+            "price": "13.0",
+            "category": "Pizzas",
+            "description": "Spicy",
+        },
+        headers=admin_auth_headers,
+    )
+    product_id = create_response.json()["id"]
+
+    update_response = client.put(
+        f"/admin/products/{product_id}",
+        data={
+            "name": "Pepperoni XL",
+            "price": "14.5",
+            "category": "Highlights",
+            "description": "Spicy and bigger",
+        },
+        headers=admin_auth_headers,
+    )
+
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["name"] == "Pepperoni XL"
+    assert updated["price"] == 14.5
+    assert updated["category"] == "Highlights"
+    assert updated["description"] == "Spicy and bigger"
+
+
+def test_update_product_requires_admin_auth(client, admin_auth_headers):
+    create_response = client.post(
+        "/admin/products",
+        data={
+            "name": "BBQ Burger",
+            "price": "11.0",
+            "category": "Burgers",
+            "description": "Classic",
+        },
+        headers=admin_auth_headers,
+    )
+    product_id = create_response.json()["id"]
+
+    update_response = client.put(
+        f"/admin/products/{product_id}",
+        data={
+            "name": "BBQ Burger 2.0",
+            "price": "12.0",
+            "category": "Burgers",
+            "description": "Updated",
+        },
+    )
+
+    assert update_response.status_code == 401
+    assert update_response.json() == {"detail": "Authentication required"}

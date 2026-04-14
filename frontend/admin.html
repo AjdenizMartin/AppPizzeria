@@ -127,8 +127,8 @@
           <article class="editor-card">
             <div class="card-head">
               <div>
-                <p class="eyebrow">Create item</p>
-                <h4>New product</h4>
+                <p id="product-form-mode" class="eyebrow">Create item</p>
+                <h4 id="product-form-title">New product</h4>
               </div>
               <span class="badge">Live form</span>
             </div>
@@ -174,7 +174,10 @@
                 <input type="file" id="image" name="file" accept="image/*">
               </label>
 
-              <button type="submit" class="primary-button field-span-2">Publish product</button>
+              <div class="field-span-2 form-actions">
+                <button type="submit" id="product-submit-button" class="primary-button">Publish product</button>
+                <button type="button" id="cancel-edit-button" class="ghost-button hidden">Cancel edit</button>
+              </div>
             </form>
           </article>
 
