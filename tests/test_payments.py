@@ -1,7 +1,8 @@
 def test_checkout_returns_url(client, monkeypatch):
-    def fake_create_checkout(items):
+    def fake_create_checkout(items, *, order_id=None):
         assert len(items) == 1
         assert items[0].name == "Pizza test"
+        assert order_id == 7
         return "https://example.com/checkout"
 
     monkeypatch.setattr("app.routers.payments.create_checkout", fake_create_checkout)
@@ -15,7 +16,8 @@ def test_checkout_returns_url(client, monkeypatch):
                     "price": 12.5,
                     "quantity": 1,
                 }
-            ]
+            ],
+            "order_id": 7,
         },
     )
 

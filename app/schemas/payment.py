@@ -9,6 +9,7 @@ class CheckoutItem(BaseModel):
 
 class CheckoutRequest(BaseModel):
     items: list[CheckoutItem]
+    order_id: int | None = None
 
 
 class CheckoutResponse(BaseModel):

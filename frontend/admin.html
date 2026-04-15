@@ -19,7 +19,7 @@
         <div>
           <p class="eyebrow">Back office</p>
           <h1>Pizzeria control room</h1>
-          <p class="header-copy">Gestiona catálogo, promociones y sesión admin con una interfaz más comercial y ordenada.</p>
+          <p class="header-copy"></p>
         </div>
       </div>
 
@@ -36,10 +36,8 @@
       <section class="hero-admin-grid">
         <article class="hero-panel">
           <p class="eyebrow">Operations</p>
-          <h2>Un panel admin con más claridad visual, mejor ritmo de trabajo y gestión rápida del menú.</h2>
-          <p>
-            Regístrate, entra como administrador y crea productos con un flujo que ya se siente más cercano a una herramienta real de negocio.
-          </p>
+          <h2>Regístrate, entra como administrador y crea productos con un flujo que ya se siente más cercano a una herramienta real de negocio.</h2>
+         
 
           <div class="hero-stats">
             <div class="stat-card">
@@ -127,8 +125,8 @@
           <article class="editor-card">
             <div class="card-head">
               <div>
-                <p id="product-form-mode" class="eyebrow">Create item</p>
-                <h4 id="product-form-title">New product</h4>
+                <p class="eyebrow">Create item</p>
+                <h4>New product</h4>
               </div>
               <span class="badge">Live form</span>
             </div>
@@ -174,10 +172,7 @@
                 <input type="file" id="image" name="file" accept="image/*">
               </label>
 
-              <div class="field-span-2 form-actions">
-                <button type="submit" id="product-submit-button" class="primary-button">Publish product</button>
-                <button type="button" id="cancel-edit-button" class="ghost-button hidden">Cancel edit</button>
-              </div>
+              <button type="submit" class="primary-button field-span-2">Publish product</button>
             </form>
           </article>
 
@@ -200,8 +195,81 @@
             <div id="products" class="products-grid"></div>
           </article>
         </div>
+
+        <article class="orders-card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Order operations</p>
+              <h4>Live orders and printing</h4>
+            </div>
+            <div class="toolbar-actions">
+              <button id="refresh-orders" class="ghost-button" type="button">Refresh orders</button>
+            </div>
+          </div>
+
+          <div id="orders" class="orders-grid"></div>
+        </article>
       </section>
     </main>
+  </div>
+
+  <div id="edit-modal-overlay" class="modal-overlay hidden">
+    <section class="edit-modal">
+      <header class="edit-modal-head">
+        <div>
+          <p class="eyebrow">Edit item</p>
+          <h4>Edit product</h4>
+        </div>
+        <button id="close-edit-modal" class="ghost-button" type="button">Close</button>
+      </header>
+
+      <form id="edit-product-form" class="product-form-grid">
+        <label class="field field-span-2">
+          <span>Name</span>
+          <input id="edit-name" type="text" required>
+        </label>
+
+        <label class="field">
+          <span>Price</span>
+          <input id="edit-price" type="number" step="0.01" required>
+        </label>
+
+        <label class="field">
+          <span>Category</span>
+          <select id="edit-category" required>
+            <option value="">Select category</option>
+            <option>Highlights</option>
+            <option>Gourmet Pizzas</option>
+            <option>Family Deals</option>
+            <option>Meal Deals</option>
+            <option>Burger Meals</option>
+            <option>Pizzas</option>
+            <option>Garlic Bread</option>
+            <option>Burgers</option>
+            <option>Chips</option>
+            <option>Extras</option>
+            <option>Sauces</option>
+            <option>Desserts</option>
+            <option>Soft Drinks</option>
+          </select>
+        </label>
+
+        <label class="field field-span-2">
+          <span>Description</span>
+          <textarea id="edit-description" rows="4"></textarea>
+        </label>
+
+        <label class="field field-span-2">
+          <span>Replace image (optional)</span>
+          <input type="file" id="edit-image" accept="image/*">
+        </label>
+
+        <div class="field-span-2 form-actions">
+          <button type="submit" class="primary-button">Save changes</button>
+          <button id="cancel-edit-modal" type="button" class="ghost-button">Cancel</button>
+        </div>
+      </form>
+    </section>
   </div>
 
   <script type="module" src="./js/admin.js"></script>

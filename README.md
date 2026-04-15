@@ -20,7 +20,10 @@ This project includes a dynamic frontend, a FastAPI backend, and Stripe integrat
 ### 🛠️ Admin Panel
 
 * Create products (name, price, category, description, ingredients)
+* Edit products from modal popup
 * Delete products
+* Manage order lifecycle (`created -> paid -> accepted -> printing -> printed -> ready -> delivered`)
+* Trigger manual reprint for failed/missed tickets
 * Real-time product updates
 * Clean and responsive UI
 
@@ -107,6 +110,10 @@ Create a `.env` file:
 
 ```
 STRIPE_KEY=your_stripe_secret_key
+SECRET_KEY=your_jwt_secret
+ADMIN_EMAILS=owner@example.com
+PRINT_AGENT_KEY=shared_secret_for_printer_agent
+PRINT_JOB_MAX_ATTEMPTS=3
 ```
 
 ---
@@ -131,6 +138,46 @@ Open in browser:
 ```
 http://127.0.0.1:5500
 ```
+
+---
+
+### 7. Run print agent (restaurant PC/tablet)
+
+```
+PRINT_AGENT_KEY=shared_secret_for_printer_agent python print_agent/agent.py --agent-id kitchen-tablet-1
+```
+
+Optional file sink (for testing without a physical printer):
+
+```
+PRINT_AGENT_KEY=shared_secret_for_printer_agent python print_agent/agent.py --output-file /tmp/print_tickets.txt
+```
+
+---
+
+### 8. Auto-start print agent on Linux (systemd)
+
+Make scripts executable and install service:
+
+```
+chmod +x ops/systemd/install_print_agent_service.sh
+./ops/systemd/install_print_agent_service.sh /opt/pizzeria-app restaurant
+```
+
+Configure runtime secrets:
+
+```
+sudo nano /etc/pizzeria-print-agent.env
+```
+
+Restart and monitor:
+
+```
+sudo systemctl restart pizzeria-print-agent.service
+sudo journalctl -u pizzeria-print-agent.service -f
+```
+
+Detailed guide: `ops/systemd/README.md`
 
 ---
 

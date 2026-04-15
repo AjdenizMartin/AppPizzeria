@@ -1,5 +1,5 @@
-from pathlib import Path
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -15,6 +15,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me").strip()
 TOKEN_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))
 STRIPE_KEY = (os.getenv("STRIPE_KEY") or "").strip()
+PRINT_AGENT_KEY = (os.getenv("PRINT_AGENT_KEY") or "").strip()
+PRINT_JOB_MAX_ATTEMPTS = int(os.getenv("PRINT_JOB_MAX_ATTEMPTS", "3"))
 ADMIN_EMAILS = {
     email.strip().lower()
     for email in os.getenv("ADMIN_EMAILS", "").split(",")

@@ -28,7 +28,7 @@ def test_create_order_calculates_total(client, db_session: Session):
     )
 
     assert response.status_code == 201
-    assert response.json() == {"order_id": 1, "total": 19.0}
+    assert response.json() == {"order_id": 1, "total": 19.0, "status": "created"}
 
 
 def test_create_order_rejects_empty_items(client):
@@ -36,3 +36,70 @@ def test_create_order_rejects_empty_items(client):
 
     assert response.status_code == 400
     assert response.json() == {"detail": "No items provided"}
+
+
+def test_admin_can_progress_order_and_enqueue_print_job(
+    client, db_session: Session, admin_auth_headers
+):
+    product = models.Product(
+        name="Pepperoni",
+        price=10.0,
+        category="Pizzas",
+        description="Classic",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    create_response = client.post(
+        "/orders",
+        json={"items": [{"product_id": product.id, "quantity": 1, "extras": ""}]},
+    )
+    order_id = create_response.json()["order_id"]
+
+    paid_response = client.patch(
+        f"/admin/orders/{order_id}/status",
+        json={"status": "paid"},
+        headers=admin_auth_headers,
+    )
+    assert paid_response.status_code == 200
+    assert paid_response.json()["status"] == "paid"
+    assert paid_response.json()["print_jobs"] == []
+
+    accepted_response = client.patch(
+        f"/admin/orders/{order_id}/status",
+        json={"status": "accepted"},
+        headers=admin_auth_headers,
+    )
+    assert accepted_response.status_code == 200
+    payload = accepted_response.json()
+    assert payload["status"] == "accepted"
+    assert len(payload["print_jobs"]) == 1
+    assert payload["print_jobs"][0]["status"] == "pending"
+
+
+def test_admin_rejects_invalid_order_transition(client, db_session: Session, admin_auth_headers):
+    product = models.Product(
+        name="Cheeseburger",
+        price=8.0,
+        category="Burgers",
+        description="Double patty",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    create_response = client.post(
+        "/orders",
+        json={"items": [{"product_id": product.id, "quantity": 1, "extras": ""}]},
+    )
+    order_id = create_response.json()["order_id"]
+
+    response = client.patch(
+        f"/admin/orders/{order_id}/status",
+        json={"status": "delivered"},
+        headers=admin_auth_headers,
+    )
+
+    assert response.status_code == 400
+    assert "Invalid transition" in response.json()["detail"]

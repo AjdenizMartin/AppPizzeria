@@ -1,13 +1,14 @@
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import PRINT_AGENT_KEY
+from app.core.security import decode_access_token
 from app.database.database import SessionLocal
 from app.database.models import User
 from app.services.auth_service import get_user_by_id
-from app.core.security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -58,3 +59,19 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
         )
 
     return current_user
+
+
+def require_print_agent(
+    x_print_agent_key: str | None = Header(default=None, alias="X-Print-Agent-Key"),
+) -> None:
+    if not PRINT_AGENT_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PRINT_AGENT_KEY is not configured on the server",
+        )
+
+    if x_print_agent_key != PRINT_AGENT_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid print agent credentials",
+        )

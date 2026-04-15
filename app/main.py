@@ -1,12 +1,13 @@
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import STATIC_DIR
+from app.database import models
+
 # DB
 from app.database.database import engine
-from app.database import models
 
 models.Base.metadata.create_all(bind=engine)
 

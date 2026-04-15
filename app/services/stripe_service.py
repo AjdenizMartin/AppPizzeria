@@ -14,7 +14,7 @@ def _configure_stripe() -> None:
     stripe.api_key = STRIPE_KEY
 
 
-def create_checkout(items: list[CheckoutItem]) -> str:
+def create_checkout(items: list[CheckoutItem], *, order_id: int | None = None) -> str:
     _configure_stripe()
 
     if not items:
@@ -34,12 +34,17 @@ def create_checkout(items: list[CheckoutItem]) -> str:
             "quantity": item.quantity,
         })
 
-    session = stripe.checkout.Session.create(
-        payment_method_types=["card"],
-        line_items=line_items,
-        mode="payment",
-        success_url=f"{FRONTEND_BASE_URL}/success.html",
-        cancel_url=FRONTEND_BASE_URL,
-    )
+    session_payload: dict = {
+        "payment_method_types": ["card"],
+        "line_items": line_items,
+        "mode": "payment",
+        "success_url": f"{FRONTEND_BASE_URL}/success.html",
+        "cancel_url": FRONTEND_BASE_URL,
+    }
+
+    if order_id is not None:
+        session_payload["metadata"] = {"order_id": str(order_id)}
+
+    session = stripe.checkout.Session.create(**session_payload)
 
     return session.url

@@ -15,13 +15,16 @@ def checkout(payload: CheckoutRequest):
         raise HTTPException(status_code=400, detail="No items provided")
 
     try:
-        url = create_checkout(items)
+        url = create_checkout(items, order_id=payload.order_id)
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except stripe.error.AuthenticationError as exc:
         raise HTTPException(
             status_code=502,
-            detail="Stripe rejected the configured secret key. Update STRIPE_KEY in your .env file.",
+            detail=(
+                "Stripe rejected the configured secret key. "
+                "Update STRIPE_KEY in your .env file."
+            ),
         ) from exc
     except stripe.error.StripeError as exc:
         raise HTTPException(

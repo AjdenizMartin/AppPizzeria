@@ -331,13 +331,44 @@ async function checkout() {
     return;
   }
 
+  const orderPayload = {
+    items: cart.map((item) => ({
+      product_id: item.id,
+      quantity: item.quantity,
+      extras: "",
+    })),
+  };
+
+  const { response: orderResponse, data: orderData } = await apiRequest("/orders", {
+    method: "POST",
+    auth: false,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(orderPayload),
+  });
+
+  if (!orderResponse.ok) {
+    alert(orderData?.detail || "Could not create order");
+    return;
+  }
+
+  const checkoutItems = cart.map((item) => ({
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+  }));
+
   const { response, data } = await apiRequest("/create-checkout-session", {
     method: "POST",
     auth: false,
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ items: cart }),
+    body: JSON.stringify({
+      items: checkoutItems,
+      order_id: orderData.order_id,
+    }),
   });
 
   if (!response.ok) {

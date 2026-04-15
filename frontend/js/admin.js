@@ -5,17 +5,19 @@ const adminPanel = document.getElementById("admin-panel");
 const authMessage = document.getElementById("auth-message");
 const sessionInfo = document.getElementById("session-info");
 const productsContainer = document.getElementById("products");
+const ordersContainer = document.getElementById("orders");
 
 const registerForm = document.getElementById("register-form");
 const loginForm = document.getElementById("login-form");
 const productForm = document.getElementById("product-form");
 const refreshButton = document.getElementById("refresh-products");
+const refreshOrdersButton = document.getElementById("refresh-orders");
 const logoutButton = document.getElementById("logout-button");
 const productSearchInput = document.getElementById("product-search");
-const productFormMode = document.getElementById("product-form-mode");
-const productFormTitle = document.getElementById("product-form-title");
-const productSubmitButton = document.getElementById("product-submit-button");
-const cancelEditButton = document.getElementById("cancel-edit-button");
+const editModalOverlay = document.getElementById("edit-modal-overlay");
+const editProductForm = document.getElementById("edit-product-form");
+const closeEditModalButton = document.getElementById("close-edit-modal");
+const cancelEditModalButton = document.getElementById("cancel-edit-modal");
 
 const totalProductsStat = document.getElementById("stat-total-products");
 const totalCategoriesStat = document.getElementById("stat-total-categories");
@@ -23,8 +25,21 @@ const sessionModeStat = document.getElementById("stat-session-mode");
 
 let currentUser = null;
 let products = [];
+let orders = [];
 let searchTerm = "";
 let editingProductId = null;
+
+const ORDER_STATUS_OPTIONS = [
+  "created",
+  "paid",
+  "accepted",
+  "printing",
+  "printed",
+  "ready",
+  "delivered",
+  "failed",
+  "cancelled",
+];
 
 function formatApiError(data, fallbackMessage) {
   if (Array.isArray(data?.detail)) {
@@ -156,36 +171,107 @@ function renderProducts() {
   });
 }
 
-function setFormModeToCreate() {
-  editingProductId = null;
-  productFormMode.textContent = "Create item";
-  productFormTitle.textContent = "New product";
-  productSubmitButton.textContent = "Publish product";
-  cancelEditButton.classList.add("hidden");
+function getLatestPrintJob(order) {
+  if (!Array.isArray(order.print_jobs) || !order.print_jobs.length) {
+    return null;
+  }
+
+  return [...order.print_jobs].sort((a, b) => b.id - a.id)[0];
 }
 
-function setFormModeToEdit(product) {
+function renderOrders() {
+  ordersContainer.innerHTML = "";
+
+  if (!orders.length) {
+    ordersContainer.innerHTML = `
+      <div class="empty-state order-empty-state">
+        No orders yet. New paid orders will appear here so you can accept and print them.
+      </div>
+    `;
+    return;
+  }
+
+  orders.forEach((order) => {
+    const latestJob = getLatestPrintJob(order);
+    const statusOptions = ORDER_STATUS_OPTIONS.map((status) => `
+      <option value="${status}" ${order.status === status ? "selected" : ""}>${status}</option>
+    `).join("");
+
+    const itemsSummary = order.items
+      .map((item) => `#${item.product_id} x${item.quantity}`)
+      .join(" · ");
+
+    const printText = latestJob
+      ? `Print job #${latestJob.id} · ${latestJob.status} · attempt ${latestJob.attempt_count}/${latestJob.max_attempts}`
+      : "No print job yet";
+
+    const printError = latestJob?.last_error
+      ? `<p class="order-print-error">Last print error: ${latestJob.last_error}</p>`
+      : "";
+
+    const card = document.createElement("article");
+    card.className = "order-card";
+    card.innerHTML = `
+      <div class="order-head">
+        <div>
+          <p class="eyebrow">Order #${order.id}</p>
+          <h5>${order.status}</h5>
+        </div>
+        <strong class="order-total">€${Number(order.total_price).toFixed(2)}</strong>
+      </div>
+
+      <p class="order-items">${itemsSummary || "No items found"}</p>
+      <p class="order-print">${printText}</p>
+      ${printError}
+
+      <div class="order-actions">
+        <label class="order-status-field">
+          <span>Next status</span>
+          <select class="order-status-select" data-order-id="${order.id}">
+            ${statusOptions}
+          </select>
+        </label>
+        <button type="button" class="ghost-button save-order-status" data-order-id="${order.id}">Update status</button>
+        <button type="button" class="ghost-button order-reprint" data-order-id="${order.id}">Reprint</button>
+      </div>
+    `;
+
+    ordersContainer.appendChild(card);
+  });
+}
+
+function openEditModal(product) {
   editingProductId = product.id;
-  productFormMode.textContent = "Edit item";
-  productFormTitle.textContent = `Edit product #${product.id}`;
-  productSubmitButton.textContent = "Save changes";
-  cancelEditButton.classList.remove("hidden");
-
-  document.getElementById("name").value = product.name;
-  document.getElementById("price").value = String(product.price);
-  document.getElementById("category").value = product.category;
-  document.getElementById("description").value = product.description || "";
-  document.getElementById("image").value = "";
+  document.getElementById("edit-name").value = product.name;
+  document.getElementById("edit-price").value = String(product.price);
+  document.getElementById("edit-category").value = product.category;
+  document.getElementById("edit-description").value = product.description || "";
+  document.getElementById("edit-image").value = "";
+  editModalOverlay.classList.remove("hidden");
+  document.body.classList.add("modal-open");
 }
 
-function buildProductFormData() {
-  const formData = new FormData();
-  formData.append("name", document.getElementById("name").value.trim());
-  formData.append("price", document.getElementById("price").value);
-  formData.append("category", document.getElementById("category").value);
-  formData.append("description", document.getElementById("description").value.trim());
+function closeEditModal() {
+  editingProductId = null;
+  editProductForm.reset();
+  editModalOverlay.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
 
-  const imageFile = document.getElementById("image").files[0];
+function buildProductFormData({
+  nameId,
+  priceId,
+  categoryId,
+  descriptionId,
+  imageId,
+}) {
+  const formData = new FormData();
+  formData.append("name", document.getElementById(nameId).value.trim());
+  formData.append("price", document.getElementById(priceId).value);
+  formData.append("category", document.getElementById(categoryId).value);
+  formData.append("description", document.getElementById(descriptionId).value.trim());
+
+  const imageFile = document.getElementById(imageId).files[0];
   if (imageFile) {
     formData.append("file", imageFile);
   }
@@ -206,6 +292,24 @@ async function loadProducts() {
   renderProducts();
 }
 
+async function loadOrders() {
+  if (!currentUser?.is_admin) {
+    orders = [];
+    renderOrders();
+    return;
+  }
+
+  const { response, data } = await apiRequest("/admin/orders?limit=80");
+
+  if (!response.ok) {
+    setMessage(formatApiError(data, "Could not load orders"), "error");
+    return;
+  }
+
+  orders = data;
+  renderOrders();
+}
+
 async function restoreSession() {
   const { response, data } = await apiRequest("/auth/me");
 
@@ -220,6 +324,7 @@ async function restoreSession() {
   renderSession();
   setMessage("Admin session restored", "success");
   await loadProducts();
+  await loadOrders();
 }
 
 async function handleAuthSubmit(path, payload, successMessage) {
@@ -242,6 +347,7 @@ async function handleAuthSubmit(path, payload, successMessage) {
   renderSession();
   setMessage(successMessage, "success");
   await loadProducts();
+  await loadOrders();
   return true;
 }
 
@@ -282,34 +388,26 @@ loginForm.addEventListener("submit", async (event) => {
 productForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const formData = buildProductFormData();
-  const isEditing = editingProductId !== null;
-  const targetPath = isEditing
-    ? `/admin/products/${editingProductId}`
-    : "/admin/products";
-  const method = isEditing ? "PUT" : "POST";
+  const formData = buildProductFormData({
+    nameId: "name",
+    priceId: "price",
+    categoryId: "category",
+    descriptionId: "description",
+    imageId: "image",
+  });
 
-  const { response, data } = await apiRequest(targetPath, {
-    method,
+  const { response, data } = await apiRequest("/admin/products", {
+    method: "POST",
     body: formData,
   });
 
   if (!response.ok) {
-    setMessage(
-      formatApiError(data, isEditing ? "Could not update product" : "Could not create product"),
-      "error",
-    );
+    setMessage(formatApiError(data, "Could not create product"), "error");
     return;
   }
 
   productForm.reset();
-  setFormModeToCreate();
-  setMessage(
-    isEditing
-      ? `Product "${data.name}" updated`
-      : `Product "${data.name}" created`,
-    "success",
-  );
+  setMessage(`Product "${data.name}" created`, "success");
   await loadProducts();
 });
 
@@ -318,18 +416,35 @@ refreshButton.addEventListener("click", async () => {
   setMessage("Products refreshed", "neutral");
 });
 
+refreshOrdersButton.addEventListener("click", async () => {
+  await loadOrders();
+  setMessage("Orders refreshed", "neutral");
+});
+
 logoutButton.addEventListener("click", () => {
   clearAuthToken();
   currentUser = null;
-  setFormModeToCreate();
+  orders = [];
+  renderOrders();
+  closeEditModal();
   renderSession();
   setMessage("Session closed", "neutral");
 });
 
-cancelEditButton.addEventListener("click", () => {
-  productForm.reset();
-  setFormModeToCreate();
+closeEditModalButton.addEventListener("click", () => {
+  closeEditModal();
+  setMessage("Edit closed", "neutral");
+});
+
+cancelEditModalButton.addEventListener("click", () => {
+  closeEditModal();
   setMessage("Edit cancelled", "neutral");
+});
+
+editModalOverlay.addEventListener("click", (event) => {
+  if (event.target === editModalOverlay) {
+    closeEditModal();
+  }
 });
 
 productSearchInput.addEventListener("input", (event) => {
@@ -349,9 +464,8 @@ productsContainer.addEventListener("click", async (event) => {
       return;
     }
 
-    setFormModeToEdit(product);
+    openEditModal(product);
     setMessage(`Editing "${product.name}"`, "neutral");
-    window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
 
@@ -373,15 +487,95 @@ productsContainer.addEventListener("click", async (event) => {
   }
 
   if (editingProductId === Number(productId)) {
-    productForm.reset();
-    setFormModeToCreate();
+    closeEditModal();
   }
 
   setMessage("Product deleted", "success");
   await loadProducts();
 });
 
-setFormModeToCreate();
+ordersContainer.addEventListener("click", async (event) => {
+  const saveStatusButton = event.target.closest(".save-order-status");
+
+  if (saveStatusButton) {
+    const orderId = Number(saveStatusButton.dataset.orderId);
+    const select = ordersContainer.querySelector(`.order-status-select[data-order-id="${orderId}"]`);
+
+    if (!select) {
+      setMessage("Could not read selected status", "error");
+      return;
+    }
+
+    const { response, data } = await apiRequest(`/admin/orders/${orderId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: select.value }),
+    });
+
+    if (!response.ok) {
+      setMessage(formatApiError(data, "Could not update order status"), "error");
+      return;
+    }
+
+    setMessage(`Order #${orderId} updated to ${data.status}`, "success");
+    await loadOrders();
+    return;
+  }
+
+  const reprintButton = event.target.closest(".order-reprint");
+
+  if (!reprintButton) {
+    return;
+  }
+
+  const orderId = Number(reprintButton.dataset.orderId);
+  const { response, data } = await apiRequest(`/admin/orders/${orderId}/reprint`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    setMessage(formatApiError(data, "Could not request reprint"), "error");
+    return;
+  }
+
+  setMessage(`Order #${orderId} moved to print queue`, "success");
+  await loadOrders();
+});
+
+editProductForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (editingProductId === null) {
+    setMessage("No product selected for edit", "error");
+    return;
+  }
+
+  const formData = buildProductFormData({
+    nameId: "edit-name",
+    priceId: "edit-price",
+    categoryId: "edit-category",
+    descriptionId: "edit-description",
+    imageId: "edit-image",
+  });
+
+  const { response, data } = await apiRequest(`/admin/products/${editingProductId}`, {
+    method: "PUT",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    setMessage(formatApiError(data, "Could not update product"), "error");
+    return;
+  }
+
+  closeEditModal();
+  setMessage(`Product "${data.name}" updated`, "success");
+  await loadProducts();
+});
+
 renderSession();
 loadProducts();
+renderOrders();
 restoreSession();

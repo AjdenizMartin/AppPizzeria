@@ -1,7 +1,13 @@
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class Product(Base):
@@ -19,9 +25,10 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    status = Column(String, default="pending")
+    status = Column(String, default="created")
     total_price = Column(Float)
     items = relationship("OrderItem", back_populates="order")
+    print_jobs = relationship("PrintJob", back_populates="order")
 
 
 class OrderItem(Base):
@@ -34,6 +41,24 @@ class OrderItem(Base):
     price = Column(Float)
     extras = Column(String)
     order = relationship("Order", back_populates="items")
+
+
+class PrintJob(Base):
+    __tablename__ = "print_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="pending")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    last_error = Column(String, nullable=True)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
+    locked_by = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    printed_at = Column(DateTime, nullable=True)
+
+    order = relationship("Order", back_populates="print_jobs")
 
 
 class User(Base):
