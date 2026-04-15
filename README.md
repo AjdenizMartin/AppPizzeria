@@ -1,230 +1,226 @@
 # 🍕 Pizzeria App
 
-A full-stack web application for managing and ordering food online, inspired by platforms like JustEat and Uber Eats.
+Aplicación full-stack para restaurantes de delivery.  
+Incluye storefront público, panel admin, pagos con Stripe y flujo operativo de impresión de tickets para cocina.
 
-This project includes a dynamic frontend, a FastAPI backend, and Stripe integration for payments.
+## Qué Resuelve
 
----
+Este proyecto está pensado como base **adaptable por negocio** (no como marketplace multirestaurante).
 
-## 🚀 Features
+- Catálogo y carrito con experiencia tipo delivery app.
+- Checkout con Stripe.
+- Backoffice para gestionar productos y pedidos.
+- Cola de impresión con reintentos para operación real en restaurante.
 
-### 🧾 Customer Side
+## Funcionalidades Principales
 
-* Browse products by category (Pizza, Burgers, Drinks, etc.)
-* Dynamic category navigation (scroll-based)
-* Product descriptions and ingredients display
-* Add items to cart
-* Guest checkout (no account required)
-* Stripe Checkout integration
+### Cliente (frontend público)
 
-### 🛠️ Admin Panel
+- Navegación por categorías con búsqueda.
+- Carrito persistente en navegador.
+- Creación de pedido previa al pago.
+- Redirección a Stripe Checkout.
 
-* Create products (name, price, category, description, ingredients)
-* Edit products from modal popup
-* Delete products
-* Manage order lifecycle (`created -> paid -> accepted -> printing -> printed -> ready -> delivered`)
-* Trigger manual reprint for failed/missed tickets
-* Real-time product updates
-* Clean and responsive UI
+### Admin (frontend privado)
 
-### 🎨 UI / UX
+- Registro/login con JWT.
+- CRUD de productos con imagen.
+- Edición de producto en modal.
+- Gestión de estados del pedido.
+- Reimpresión manual de pedidos.
 
-* Dark / Light mode toggle
-* Responsive design (mobile-friendly)
-* Smooth animations and hover effects
-* Category navigation similar to food delivery apps
+### Operación (impresión)
 
----
+- Cola `print_jobs` con estados `pending/printing/printed/failed`.
+- Reintentos controlados por `PRINT_JOB_MAX_ATTEMPTS`.
+- Agente local (`print_agent/agent.py`) para PC/tablet del restaurante.
+- Autoarranque Linux vía `systemd`.
 
-## 🏗️ Tech Stack
+## Arquitectura
 
 ### Backend
 
-* Python
-* FastAPI
-* SQLAlchemy
-* SQLite
-* Stripe API
+- FastAPI + SQLAlchemy + SQLite
+- Autenticación JWT
+- Routers principales:
+  - `/auth`
+  - `/products` y `/admin/products`
+  - `/orders` y `/admin/orders`
+  - `/create-checkout-session`
+  - `/print-agent/*`
 
 ### Frontend
 
-* HTML
-* Tailwind CSS
-* Vanilla JavaScript
+- HTML + CSS + JavaScript vanilla
+- Vistas:
+  - `frontend/index.html` (tienda)
+  - `frontend/admin.html` (panel admin)
 
----
+### Agente de impresión
 
-## 📂 Project Structure
+- Proceso local con polling seguro usando `X-Print-Agent-Key`.
+- Consume trabajos de impresión y reporta éxito/fallo al backend.
 
-```
+## Flujo de Pedido
+
+`created -> paid -> accepted -> printing -> printed -> ready -> delivered`
+
+Estados alternativos: `failed`, `cancelled`.
+
+Al pasar a `accepted`, se encola automáticamente un trabajo de impresión.
+
+## Estructura del Proyecto
+
+```text
 pizzeria-app/
-│
 ├── app/
-│   ├── main.py
+│   ├── api/
+│   ├── core/
 │   ├── database/
 │   ├── routers/
-│   └── schemas/
-│
+│   ├── schemas/
+│   ├── services/
+│   └── static/
 ├── frontend/
-│   ├── index.html
-│   └── admin.html
-│
-├── .env
-├── .gitignore
-└── pizzeria.db
+├── print_agent/
+├── ops/systemd/
+├── tests/
+├── .env.example
+└── pyproject.toml
 ```
 
----
+## Requisitos
 
-## ⚙️ Setup Instructions
+- Python 3.11+
+- `pip`
+- Cuenta Stripe (modo test para desarrollo)
+- (Opcional) Linux con `systemd` para autoarranque del print agent
 
-### 1. Clone the repository
+## Puesta en Marcha Rápida
 
-```
+### 1) Clonar repositorio
+
+```bash
 git clone https://github.com/AjdenizMartin/AppPizzeria.git
 cd AppPizzeria
 ```
 
----
+### 2) Crear entorno virtual
 
-### 2. Create virtual environment
-
-```
+```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
 
----
+### 3) Instalar dependencias
 
-### 3. Install dependencies
-
-```
-pip install -r requirements.txt
+```bash
+pip install -e ".[dev]"
 ```
 
----
+### 4) Configurar variables de entorno
 
-### 4. Configure environment variables
-
-Create a `.env` file:
-
+```bash
+cp .env.example .env
 ```
-STRIPE_KEY=your_stripe_secret_key
-SECRET_KEY=your_jwt_secret
+
+Variables mínimas recomendadas en `.env`:
+
+```env
+STRIPE_KEY=sk_test_xxx
+SECRET_KEY=change-me-in-production
 ADMIN_EMAILS=owner@example.com
+FRONTEND_BASE_URL=http://127.0.0.1:5500
+ACCESS_TOKEN_EXPIRE_MINUTES=120
 PRINT_AGENT_KEY=shared_secret_for_printer_agent
 PRINT_JOB_MAX_ATTEMPTS=3
 ```
 
----
+### 5) Levantar backend
 
-### 5. Run backend
-
-```
+```bash
 python -m uvicorn app.main:app --reload
 ```
 
----
+API docs disponibles en: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-### 6. Run frontend
+### 6) Levantar frontend
 
-```
+```bash
 cd frontend
-python3 -m http.server 5500
+python -m http.server 5500
 ```
 
-Open in browser:
+App cliente: [http://127.0.0.1:5500](http://127.0.0.1:5500)
 
-```
-http://127.0.0.1:5500
-```
+Panel admin: [http://127.0.0.1:5500/admin.html](http://127.0.0.1:5500/admin.html)
 
----
+## Operación de Impresión
 
-### 7. Run print agent (restaurant PC/tablet)
+### Ejecutar print agent manualmente
 
-```
-PRINT_AGENT_KEY=shared_secret_for_printer_agent python print_agent/agent.py --agent-id kitchen-tablet-1
-```
-
-Optional file sink (for testing without a physical printer):
-
-```
-PRINT_AGENT_KEY=shared_secret_for_printer_agent python print_agent/agent.py --output-file /tmp/print_tickets.txt
+```bash
+PRINT_AGENT_KEY=shared_secret_for_printer_agent \
+python print_agent/agent.py --agent-id kitchen-tablet-1
 ```
 
----
+Modo prueba sin impresora física:
 
-### 8. Auto-start print agent on Linux (systemd)
-
-Make scripts executable and install service:
-
+```bash
+PRINT_AGENT_KEY=shared_secret_for_printer_agent \
+python print_agent/agent.py --output-file /tmp/print_tickets.txt
 ```
+
+### Autoarranque con systemd (Linux)
+
+```bash
 chmod +x ops/systemd/install_print_agent_service.sh
 ./ops/systemd/install_print_agent_service.sh /opt/pizzeria-app restaurant
 ```
 
-Configure runtime secrets:
+Configura secretos runtime:
 
-```
+```bash
 sudo nano /etc/pizzeria-print-agent.env
 ```
 
-Restart and monitor:
+Comandos operativos:
 
-```
+```bash
 sudo systemctl restart pizzeria-print-agent.service
+sudo systemctl status pizzeria-print-agent.service
 sudo journalctl -u pizzeria-print-agent.service -f
 ```
 
-Detailed guide: `ops/systemd/README.md`
+Guía extendida: [ops/systemd/README.md](ops/systemd/README.md)
 
----
+## Testing y Calidad
 
-## 💳 Stripe Testing
-
-Use Stripe test cards:
-
-```
-4242 4242 4242 4242
-Any future date
-Any CVC
+```bash
+pytest -q
+ruff check app tests
 ```
 
----
+## Credenciales Admin
 
-## 🔐 Security Notes
+- El primer usuario registrado se convierte en admin.
+- Cualquier email incluido en `ADMIN_EMAILS` también obtiene permisos de admin.
 
-* Stripe keys are stored in `.env` (not committed)
-* `.gitignore` prevents sensitive data from being uploaded
+## Seguridad (mínimo recomendado)
 
----
+- Nunca subir `.env` a Git.
+- Usar claves Stripe secret (`sk_...`) válidas por entorno.
+- Cambiar `SECRET_KEY` en producción.
+- Proteger `PRINT_AGENT_KEY` y rotarla por cliente/restaurante.
 
-## 🚀 Future Improvements
+## Próximos Pasos Sugeridos
 
-* Product images upload
-* Advanced pizza builder (sizes + toppings)
-* User authentication system
-* Order history and tracking
-* Admin dashboard improvements
-* Deployment (Docker / Cloud)
+- Webhook de Stripe para confirmar pago de forma server-to-server.
+- Persistencia robusta para producción (PostgreSQL).
+- Integración directa con impresoras ESC/POS.
+- Métricas y alertas operativas (errores de impresión, pedidos atascados).
 
----
+## Autor
 
-## 📸 Preview
-
-(Add screenshots here)
-
----
-
-## 👨‍💻 Author
-
-**Angel Deniz**
-
-* GitHub: https://github.com/AjdenizMartin
-
----
-
-## ⭐️ Support
-
-If you like this project, feel free to give it a star ⭐️
+**Angel Deniz**  
+GitHub: [@AjdenizMartin](https://github.com/AjdenizMartin)
