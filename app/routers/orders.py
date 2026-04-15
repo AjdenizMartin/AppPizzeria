@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_admin, get_db
 from app.schemas.order import (
+    CashCheckoutResponse,
     OrderAdminRead,
     OrderCreate,
     OrderCreateResponse,
@@ -10,6 +11,7 @@ from app.schemas.order import (
     PrintRequeueResponse,
 )
 from app.services.order_service import (
+    create_cash_checkout_order,
     create_order,
     list_orders,
     requeue_order_print,
@@ -25,6 +27,20 @@ def create_order_endpoint(payload: OrderCreate, db: Session = Depends(get_db)):
         return create_order(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/orders/cash-checkout",
+    response_model=CashCheckoutResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_cash_checkout_order_endpoint(payload: OrderCreate, db: Session = Depends(get_db)):
+    try:
+        return create_cash_checkout_order(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/admin/orders", response_model=list[OrderAdminRead])

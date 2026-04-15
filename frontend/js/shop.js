@@ -1,4 +1,10 @@
-import { API_URL, apiRequest } from "./api.js";
+import {
+  API_URL,
+  apiRequest,
+  clearAuthToken,
+  getAuthToken,
+  setAuthToken,
+} from "./api.js";
 
 const CATEGORY_ORDER = [
   "Highlights", "Gourmet Pizzas", "Family Deals", "Meal Deals",
@@ -16,17 +22,171 @@ const floatingCartCountEl = document.getElementById("floating-cart-count");
 const grandTotalEl = document.getElementById("cart-grand-total");
 const cartEl = document.getElementById("cart");
 const overlay = document.getElementById("overlay");
+const checkoutCardButton = document.getElementById("checkout-card-button");
+const checkoutCashButton = document.getElementById("checkout-cash-button");
 const searchInput = document.getElementById("search-input");
 const heroProductCount = document.getElementById("hero-product-count");
 const searchState = document.getElementById("search-state");
+
+const authCtaButton = document.getElementById("auth-cta-button");
+const authLabel = document.getElementById("auth-label");
+const authStatus = document.getElementById("auth-status");
+const authPanel = document.getElementById("auth-panel");
+const authPanelOverlay = document.getElementById("auth-panel-overlay");
+const closeAuthPanelButton = document.getElementById("close-auth-panel");
+const authMessage = document.getElementById("auth-message");
+const registerForm = document.getElementById("register-form");
+const loginForm = document.getElementById("login-form");
+const profilePanel = document.getElementById("profile-panel");
+const profileForm = document.getElementById("profile-form");
+const profileFullName = document.getElementById("profile-full-name");
+const profileAddressLine = document.getElementById("profile-address-line");
+const profileCity = document.getElementById("profile-city");
+const profilePostalCode = document.getElementById("profile-postal-code");
+const profilePhone = document.getElementById("profile-phone");
+const profileLogoutButton = document.getElementById("profile-logout-button");
 
 let products = [];
 let cart = JSON.parse(localStorage.getItem("cart")) || [];
 let selectedCategory = null;
 let searchTerm = "";
+let currentUser = null;
 
 function saveCart() {
   localStorage.setItem("cart", JSON.stringify(cart));
+}
+
+function formatApiError(data, fallbackMessage) {
+  if (Array.isArray(data?.detail)) {
+    return data.detail
+      .map((item) => item.msg || item.message || JSON.stringify(item))
+      .join(" | ");
+  }
+
+  if (typeof data?.detail === "string") {
+    return data.detail;
+  }
+
+  return fallbackMessage;
+}
+
+function setAuthMessage(message, tone = "neutral") {
+  authMessage.textContent = message;
+  authMessage.className = `auth-message ${tone}`;
+}
+
+function renderSession() {
+  if (!currentUser) {
+    authLabel.textContent = "Sign in";
+    authStatus.textContent = "Guest checkout mode";
+    checkoutCardButton.textContent = "Pay by card as guest";
+    checkoutCashButton.textContent = "Cash on delivery";
+    profilePanel.classList.add("hidden");
+    profileForm.reset();
+    return;
+  }
+
+  authLabel.textContent = "My account";
+  authStatus.textContent = currentUser.full_name
+    ? `${currentUser.full_name} · signed in`
+    : `Signed in as ${currentUser.email}`;
+  checkoutCardButton.textContent = "Pay by card";
+  checkoutCashButton.textContent = "Cash on delivery";
+  profilePanel.classList.remove("hidden");
+  profileFullName.value = currentUser.full_name || "";
+  profileAddressLine.value = currentUser.address_line || "";
+  profileCity.value = currentUser.city || "";
+  profilePostalCode.value = currentUser.postal_code || "";
+  profilePhone.value = currentUser.phone || "";
+}
+
+function openAuthPanel() {
+  authPanel.classList.remove("hidden");
+  authPanelOverlay.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closeAuthPanel() {
+  authPanel.classList.add("hidden");
+  authPanelOverlay.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+async function restoreSession() {
+  if (!getAuthToken()) {
+    currentUser = null;
+    renderSession();
+    return;
+  }
+
+  const { response, data } = await apiRequest("/auth/me");
+
+  if (!response.ok) {
+    clearAuthToken();
+    currentUser = null;
+    renderSession();
+    return;
+  }
+
+  currentUser = data;
+  renderSession();
+  setAuthMessage("Session restored. You are ready to order.", "success");
+}
+
+async function handleAuthSubmit(path, payload, successMessage) {
+  const { response, data } = await apiRequest(path, {
+    method: "POST",
+    auth: false,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    setAuthMessage(formatApiError(data, "Authentication failed"), "error");
+    return false;
+  }
+
+  setAuthToken(data.access_token);
+  currentUser = data.user;
+  renderSession();
+  setAuthMessage(successMessage, "success");
+  closeAuthPanel();
+  return true;
+}
+
+async function saveProfile() {
+  if (!currentUser) {
+    setAuthMessage("Sign in before saving profile details.", "error");
+    return false;
+  }
+
+  const payload = {
+    full_name: profileFullName.value,
+    address_line: profileAddressLine.value,
+    city: profileCity.value,
+    postal_code: profilePostalCode.value,
+    phone: profilePhone.value,
+  };
+
+  const { response, data } = await apiRequest("/auth/me/profile", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    setAuthMessage(formatApiError(data, "Could not save profile"), "error");
+    return false;
+  }
+
+  currentUser = data;
+  renderSession();
+  setAuthMessage("Profile saved. Your delivery details are up to date.", "success");
+  return true;
 }
 
 function getCategoryDescription(category) {
@@ -325,23 +485,27 @@ function toggleTheme() {
   document.body.classList.toggle("dark");
 }
 
-async function checkout() {
-  if (!cart.length) {
-    alert("Cart is empty");
-    return;
-  }
-
-  const orderPayload = {
+function buildOrderPayload() {
+  return {
     items: cart.map((item) => ({
       product_id: item.id,
       quantity: item.quantity,
       extras: "",
     })),
   };
+}
+
+async function checkoutCard() {
+  if (!cart.length) {
+    alert("Cart is empty");
+    return;
+  }
+
+  const orderPayload = buildOrderPayload();
 
   const { response: orderResponse, data: orderData } = await apiRequest("/orders", {
     method: "POST",
-    auth: false,
+    auth: Boolean(currentUser),
     headers: {
       "Content-Type": "application/json",
     },
@@ -361,7 +525,7 @@ async function checkout() {
 
   const { response, data } = await apiRequest("/create-checkout-session", {
     method: "POST",
-    auth: false,
+    auth: Boolean(currentUser),
     headers: {
       "Content-Type": "application/json",
     },
@@ -384,6 +548,33 @@ async function checkout() {
   alert("Stripe did not return a checkout URL");
 }
 
+async function checkoutCash() {
+  if (!cart.length) {
+    alert("Cart is empty");
+    return;
+  }
+
+  const { response, data } = await apiRequest("/orders/cash-checkout", {
+    method: "POST",
+    auth: Boolean(currentUser),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(buildOrderPayload()),
+  });
+
+  if (!response.ok) {
+    alert(data?.detail || "Could not place cash order");
+    return;
+  }
+
+  cart = [];
+  saveCart();
+  renderCart();
+  toggleCart();
+  alert(`Cash order #${data.order_id} placed successfully.`);
+}
+
 async function loadProducts() {
   const { response, data } = await apiRequest("/products", { auth: false });
 
@@ -394,9 +585,70 @@ async function loadProducts() {
 
   products = data;
   renderCategories();
+  renderFeatured();
   renderMenu();
   renderCart();
 }
+
+registerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const email = document.getElementById("register-email").value.trim();
+  const password = document.getElementById("register-password").value;
+
+  const success = await handleAuthSubmit(
+    "/auth/register",
+    { email, password },
+    "Account created and signed in"
+  );
+
+  if (success) {
+    registerForm.reset();
+  }
+});
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+
+  const success = await handleAuthSubmit(
+    "/auth/login",
+    { email, password },
+    "Welcome back. Session is active"
+  );
+
+  if (success) {
+    loginForm.reset();
+  }
+});
+
+authCtaButton.addEventListener("click", () => {
+  if (!currentUser) {
+    setAuthMessage("Create an account or sign in to continue with your session.", "neutral");
+    openAuthPanel();
+    return;
+  }
+
+  setAuthMessage("Review or update your saved delivery details.", "neutral");
+  openAuthPanel();
+});
+
+profileLogoutButton.addEventListener("click", () => {
+  clearAuthToken();
+  currentUser = null;
+  renderSession();
+  closeAuthPanel();
+  setAuthMessage("You signed out successfully.", "success");
+});
+
+closeAuthPanelButton.addEventListener("click", closeAuthPanel);
+authPanelOverlay.addEventListener("click", closeAuthPanel);
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveProfile();
+});
 
 menu.addEventListener("click", (event) => {
   const button = event.target.closest(".add-to-cart");
@@ -430,7 +682,8 @@ cartContainer.addEventListener("click", (event) => {
 
 window.toggleCart = toggleCart;
 window.toggleTheme = toggleTheme;
-window.checkout = checkout;
+window.checkoutCard = checkoutCard;
+window.checkoutCash = checkoutCash;
 
 searchInput.addEventListener("input", (event) => {
   searchTerm = event.target.value;
@@ -438,4 +691,5 @@ searchInput.addEventListener("input", (event) => {
   renderMenu();
 });
 
-loadProducts();
+await restoreSession();
+await loadProducts();

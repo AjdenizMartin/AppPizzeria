@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.config import ADMIN_EMAILS
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database.models import User
-from app.schemas.user import TokenResponse, UserLogin, UserRead, UserRegister
+from app.schemas.user import TokenResponse, UserLogin, UserProfileUpdate, UserRead, UserRegister
 
 
 def normalize_email(email: str) -> str:
@@ -67,3 +67,14 @@ def build_token_response(user: User) -> TokenResponse:
         access_token=access_token,
         user=UserRead.model_validate(user),
     )
+
+
+def update_user_profile(db: Session, user: User, payload: UserProfileUpdate) -> User:
+    user.full_name = payload.full_name.strip() or None
+    user.address_line = payload.address_line.strip() or None
+    user.city = payload.city.strip() or None
+    user.postal_code = payload.postal_code.strip() or None
+    user.phone = payload.phone.strip() or None
+    db.commit()
+    db.refresh(user)
+    return user

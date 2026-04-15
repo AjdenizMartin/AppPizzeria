@@ -64,6 +64,30 @@ def create_order(db: Session, payload: OrderCreate) -> dict[str, float | int | s
     return {"order_id": order.id, "total": total, "status": order.status}
 
 
+def create_cash_checkout_order(db: Session, payload: OrderCreate) -> dict[str, float | int | str]:
+    order_data = create_order(db, payload)
+    order = get_order_with_details(db, int(order_data["order_id"]))
+
+    if order is None:
+        raise LookupError("Order not found after creation")
+
+    order.status = "accepted"
+    enqueue_print_job(
+        db,
+        order,
+        idempotency_key=f"order-{order.id}-cash-checkout",
+    )
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "order_id": order.id,
+        "total": float(order.total_price),
+        "status": order.status,
+        "payment_method": "cash",
+    }
+
+
 def list_orders(db: Session, *, limit: int = 50) -> list[models.Order]:
     return list_recent_orders(db, limit=limit)
 

@@ -23,6 +23,12 @@
       </div>
 
       <div class="header-actions">
+        <div id="auth-status" class="header-pill auth-status-pill">Guest checkout mode</div>
+
+        <button id="auth-cta-button" class="auth-cta-button">
+          <span id="auth-label">Sign in</span>
+        </button>
+
         <div class="header-pill">
           <span class="pill-dot"></span>
           Delivering in 20-35 min
@@ -162,6 +168,97 @@
 
   <div id="overlay" onclick="toggleCart()" class="cart-overlay hidden"></div>
 
+  <div id="auth-panel-overlay" class="cart-overlay hidden"></div>
+
+  <aside id="auth-panel" class="auth-drawer hidden">
+    <div class="cart-header">
+      <div>
+        <p class="eyebrow">Client session</p>
+        <h3>Sign in or register</h3>
+      </div>
+      <button id="close-auth-panel" class="cart-close">✕</button>
+    </div>
+
+    <p id="auth-message" class="auth-message neutral">Use your email to keep an active client session.</p>
+
+    <section id="profile-panel" class="profile-panel hidden">
+      <div class="profile-head">
+        <div>
+          <p class="eyebrow">Saved details</p>
+          <h4>Delivery profile</h4>
+        </div>
+        <button id="profile-logout-button" type="button" class="auth-cta-button">Sign out</button>
+      </div>
+
+      <form id="profile-form" class="profile-form">
+        <label class="field">
+          <span>Full name</span>
+          <input id="profile-full-name" type="text" placeholder="Jane Doe">
+        </label>
+
+        <label class="field field-span-2">
+          <span>Address</span>
+          <input id="profile-address-line" type="text" placeholder="12 Market Street">
+        </label>
+
+        <label class="field">
+          <span>City</span>
+          <input id="profile-city" type="text" placeholder="Dublin">
+        </label>
+
+        <label class="field">
+          <span>Postal code</span>
+          <input id="profile-postal-code" type="text" placeholder="D01 X2Y3">
+        </label>
+
+        <label class="field field-span-2">
+          <span>Phone</span>
+          <input id="profile-phone" type="text" placeholder="+353 85 000 0000">
+        </label>
+
+        <button type="submit" class="auth-submit field-span-2">Save profile</button>
+      </form>
+    </section>
+
+    <section class="auth-grid">
+      <article class="auth-card">
+        <p class="eyebrow">New customer</p>
+        <h4>Create account</h4>
+        <form id="register-form" class="stack-form">
+          <label class="field">
+            <span>Email</span>
+            <input id="register-email" type="email" placeholder="you@example.com" required>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input id="register-password" type="password" placeholder="Minimum 6 characters" minlength="6" required>
+          </label>
+
+          <button type="submit" class="auth-submit">Create and sign in</button>
+        </form>
+      </article>
+
+      <article class="auth-card auth-card-dark">
+        <p class="eyebrow">Returning customer</p>
+        <h4>Login</h4>
+        <form id="login-form" class="stack-form">
+          <label class="field">
+            <span>Email</span>
+            <input id="login-email" type="email" placeholder="you@example.com" required>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input id="login-password" type="password" placeholder="Your password" required>
+          </label>
+
+          <button type="submit" class="auth-submit">Sign in</button>
+        </form>
+      </article>
+    </section>
+  </aside>
+
   <aside id="cart" class="cart-drawer cart-hidden">
     <div class="cart-header">
       <div>
@@ -198,9 +295,14 @@
         <strong>€<span id="cart-grand-total">2.50</span></strong>
       </div>
 
-      <button onclick="checkout()" class="checkout-button">
-        Go to secure checkout
-      </button>
+      <div class="checkout-actions">
+        <button id="checkout-card-button" onclick="checkoutCard()" class="checkout-button">
+          Pay by card
+        </button>
+        <button id="checkout-cash-button" onclick="checkoutCash()" class="checkout-button checkout-button-cash">
+          Cash on delivery
+        </button>
+      </div>
     </div>
   </aside>
 

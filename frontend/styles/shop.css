@@ -40,6 +40,10 @@ input {
   font: inherit;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 .page-shell {
   width: min(1320px, calc(100% - 32px));
   margin: 0 auto;
@@ -124,6 +128,31 @@ input {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.auth-status-pill {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-cta-button:hover {
+  transform: translateY(-1px);
 }
 
 .header-pill,
@@ -507,6 +536,16 @@ input {
   font-weight: 700;
 }
 
+.checkout-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.checkout-button-cash {
+  background: linear-gradient(135deg, #2f8f63, #46a877);
+  box-shadow: 0 18px 28px rgba(47, 143, 99, 0.22);
+}
+
 .sticky-filter-wrap {
   position: sticky;
   top: 104px;
@@ -598,6 +637,140 @@ input {
   inset: 0;
   z-index: 55;
   background: rgba(24, 12, 7, 0.46);
+}
+
+.auth-drawer {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 62;
+  display: grid;
+  gap: 14px;
+  width: min(720px, calc(100vw - 24px));
+  max-height: calc(100vh - 36px);
+  padding: 22px;
+  border: 1px solid rgba(118, 75, 43, 0.1);
+  border-radius: 30px;
+  overflow: auto;
+  background: rgba(255, 251, 246, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.auth-card {
+  padding: 18px;
+  border: 1px solid rgba(118, 75, 43, 0.1);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.auth-card-dark {
+  background: linear-gradient(180deg, rgba(28, 20, 15, 0.96), rgba(44, 31, 23, 0.96));
+  color: white;
+}
+
+.auth-card h4 {
+  margin: 0 0 12px;
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+
+.auth-card-dark .eyebrow {
+  color: rgba(255, 203, 71, 0.95);
+}
+
+.stack-form {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(118, 75, 43, 0.16);
+  border-radius: 14px;
+  background: #fff;
+  outline: none;
+}
+
+.auth-card-dark .field input {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.96);
+  color: #1c140f;
+}
+
+.auth-submit {
+  border: none;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--brand), #ff7d3e);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-message {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+
+.auth-message.neutral {
+  color: #5d4437;
+  background: rgba(255, 248, 238, 0.96);
+  border-color: rgba(130, 94, 73, 0.18);
+}
+
+.auth-message.success {
+  color: #225a3f;
+  background: rgba(214, 249, 228, 0.92);
+  border-color: rgba(39, 143, 98, 0.32);
+}
+
+.auth-message.error {
+  color: #8f2d1f;
+  background: rgba(255, 225, 219, 0.92);
+  border-color: rgba(196, 79, 55, 0.36);
+}
+
+.profile-panel {
+  padding: 16px;
+  border: 1px solid rgba(118, 75, 43, 0.1);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.profile-head h4 {
+  margin: 0;
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+
+.profile-form {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-form .field input {
+  border-radius: 12px;
+}
+
+.field-span-2 {
+  grid-column: span 2;
 }
 
 .hidden {
@@ -842,6 +1015,27 @@ input {
     left: 10px;
     width: auto;
     height: min(82vh, 720px);
+  }
+
+  .auth-drawer {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-height: min(84vh, 760px);
+  }
+
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-form {
+    grid-template-columns: 1fr;
+  }
+
+  .field-span-2 {
+    grid-column: auto;
   }
 
   .floating-cart-button {

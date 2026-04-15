@@ -7,9 +7,10 @@ from app.core.config import STATIC_DIR
 from app.database import models
 
 # DB
-from app.database.database import engine
+from app.database.database import engine, ensure_runtime_schema
 
 models.Base.metadata.create_all(bind=engine)
+ensure_runtime_schema()
 
 app = FastAPI()
 

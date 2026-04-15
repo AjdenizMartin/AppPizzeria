@@ -34,6 +34,13 @@ class OrderCreateResponse(BaseModel):
     status: str
 
 
+class CashCheckoutResponse(BaseModel):
+    order_id: int
+    total: float
+    status: str
+    payment_method: str
+
+
 class OrderStatusUpdate(BaseModel):
     status: OrderStatusInput
 

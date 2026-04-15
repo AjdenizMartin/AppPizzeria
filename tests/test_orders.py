@@ -103,3 +103,36 @@ def test_admin_rejects_invalid_order_transition(client, db_session: Session, adm
 
     assert response.status_code == 400
     assert "Invalid transition" in response.json()["detail"]
+
+
+def test_cash_checkout_creates_accepted_order_and_print_job(
+    client, db_session: Session, admin_auth_headers
+):
+    product = models.Product(
+        name="Cash Pizza",
+        price=11.0,
+        category="Pizzas",
+        description="Cash order item",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    response = client.post(
+        "/orders/cash-checkout",
+        json={"items": [{"product_id": product.id, "quantity": 2, "extras": ""}]},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["total"] == 22.0
+    assert payload["status"] == "accepted"
+    assert payload["payment_method"] == "cash"
+
+    admin_orders_response = client.get("/admin/orders", headers=admin_auth_headers)
+    assert admin_orders_response.status_code == 200
+    latest_order = admin_orders_response.json()[0]
+    assert latest_order["id"] == payload["order_id"]
+    assert latest_order["status"] == "accepted"
+    assert len(latest_order["print_jobs"]) == 1
+    assert latest_order["print_jobs"][0]["status"] == "pending"
