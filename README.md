@@ -194,6 +194,32 @@ sudo journalctl -u pizzeria-print-agent.service -f
 
 Guía extendida: [ops/systemd/README.md](ops/systemd/README.md)
 
+## Compartir Demo Sin Desplegar
+
+Puedes enseñar la app a un cliente sin subirla a un servidor usando un túnel temporal.
+
+### Opción recomendada: Cloudflare Tunnel
+
+1. Instalar (solo una vez en Mac):
+
+```bash
+brew install cloudflared
+```
+
+2. Ejecutar demo compartible desde la raíz del proyecto:
+
+```bash
+chmod +x scripts/share_demo.sh
+./scripts/share_demo.sh
+```
+
+3. Copiar la URL `https://*.trycloudflare.com` que imprime el script y compartirla.
+
+Notas:
+- El enlace funciona mientras tu ordenador y el script estén activos.
+- En este modo, frontend y backend van por la misma URL (`/app/index.html`).
+- Usa siempre claves de Stripe en modo test para demos públicas.
+
 ## Testing y Calidad
 
 ```bash

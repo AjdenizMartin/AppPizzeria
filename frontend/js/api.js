@@ -1,4 +1,33 @@
-export const API_URL = "http://127.0.0.1:8000";
+const API_OVERRIDE_KEY = "pizzeria_api_url_override";
+
+function isLocalDevHost(hostname) {
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0") {
+    return true;
+  }
+
+  if (hostname.startsWith("192.168.") || hostname.startsWith("10.")) {
+    return true;
+  }
+
+  return /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+}
+
+function getApiUrl() {
+  const storedOverride = localStorage.getItem(API_OVERRIDE_KEY);
+  if (storedOverride) {
+    return storedOverride.trim();
+  }
+
+  const { protocol, hostname, port } = window.location;
+
+  if (port && port !== "8000" && isLocalDevHost(hostname)) {
+    return `${protocol}//${hostname}:8000`;
+  }
+
+  return window.location.origin;
+}
+
+export const API_URL = getApiUrl();
 const AUTH_TOKEN_KEY = "pizzeria_auth_token";
 
 export function getAuthToken() {

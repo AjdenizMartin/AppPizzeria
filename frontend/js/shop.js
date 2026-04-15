@@ -57,6 +57,10 @@ function saveCart() {
 }
 
 function formatApiError(data, fallbackMessage) {
+  if (typeof data === "string" && data.trim()) {
+    return data.trim();
+  }
+
   if (Array.isArray(data?.detail)) {
     return data.detail
       .map((item) => item.msg || item.message || JSON.stringify(item))
@@ -81,8 +85,12 @@ function renderSession() {
     authStatus.textContent = "Guest checkout mode";
     checkoutCardButton.textContent = "Pay by card as guest";
     checkoutCashButton.textContent = "Cash on delivery";
-    profilePanel.classList.add("hidden");
-    profileForm.reset();
+    if (profilePanel) {
+      profilePanel.classList.add("hidden");
+    }
+    if (profileForm) {
+      profileForm.reset();
+    }
     return;
   }
 
@@ -92,12 +100,24 @@ function renderSession() {
     : `Signed in as ${currentUser.email}`;
   checkoutCardButton.textContent = "Pay by card";
   checkoutCashButton.textContent = "Cash on delivery";
-  profilePanel.classList.remove("hidden");
-  profileFullName.value = currentUser.full_name || "";
-  profileAddressLine.value = currentUser.address_line || "";
-  profileCity.value = currentUser.city || "";
-  profilePostalCode.value = currentUser.postal_code || "";
-  profilePhone.value = currentUser.phone || "";
+  if (profilePanel) {
+    profilePanel.classList.remove("hidden");
+  }
+  if (profileFullName) {
+    profileFullName.value = currentUser.full_name || "";
+  }
+  if (profileAddressLine) {
+    profileAddressLine.value = currentUser.address_line || "";
+  }
+  if (profileCity) {
+    profileCity.value = currentUser.city || "";
+  }
+  if (profilePostalCode) {
+    profilePostalCode.value = currentUser.postal_code || "";
+  }
+  if (profilePhone) {
+    profilePhone.value = currentUser.phone || "";
+  }
 }
 
 function openAuthPanel() {
@@ -134,14 +154,24 @@ async function restoreSession() {
 }
 
 async function handleAuthSubmit(path, payload, successMessage) {
-  const { response, data } = await apiRequest(path, {
-    method: "POST",
-    auth: false,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  let data;
+  try {
+    ({ response, data } = await apiRequest(path, {
+      method: "POST",
+      auth: false,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }));
+  } catch (_error) {
+    setAuthMessage(
+      `Could not reach server at ${API_URL}. Check backend availability.`,
+      "error",
+    );
+    return false;
+  }
 
   if (!response.ok) {
     setAuthMessage(formatApiError(data, "Authentication failed"), "error");
@@ -163,11 +193,11 @@ async function saveProfile() {
   }
 
   const payload = {
-    full_name: profileFullName.value,
-    address_line: profileAddressLine.value,
-    city: profileCity.value,
-    postal_code: profilePostalCode.value,
-    phone: profilePhone.value,
+    full_name: profileFullName?.value || "",
+    address_line: profileAddressLine?.value || "",
+    city: profileCity?.value || "",
+    postal_code: profilePostalCode?.value || "",
+    phone: profilePhone?.value || "",
   };
 
   const { response, data } = await apiRequest("/auth/me/profile", {
@@ -590,39 +620,43 @@ async function loadProducts() {
   renderCart();
 }
 
-registerForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+if (registerForm) {
+  registerForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  const email = document.getElementById("register-email").value.trim();
-  const password = document.getElementById("register-password").value;
+    const email = document.getElementById("register-email").value.trim();
+    const password = document.getElementById("register-password").value;
 
-  const success = await handleAuthSubmit(
-    "/auth/register",
-    { email, password },
-    "Account created and signed in"
-  );
+    const success = await handleAuthSubmit(
+      "/auth/register",
+      { email, password },
+      "Account created and signed in",
+    );
 
-  if (success) {
-    registerForm.reset();
-  }
-});
+    if (success) {
+      registerForm.reset();
+    }
+  });
+}
 
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+if (loginForm) {
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  const email = document.getElementById("login-email").value.trim();
-  const password = document.getElementById("login-password").value;
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
 
-  const success = await handleAuthSubmit(
-    "/auth/login",
-    { email, password },
-    "Welcome back. Session is active"
-  );
+    const success = await handleAuthSubmit(
+      "/auth/login",
+      { email, password },
+      "Welcome back. Session is active",
+    );
 
-  if (success) {
-    loginForm.reset();
-  }
-});
+    if (success) {
+      loginForm.reset();
+    }
+  });
+}
 
 authCtaButton.addEventListener("click", () => {
   if (!currentUser) {
@@ -635,20 +669,24 @@ authCtaButton.addEventListener("click", () => {
   openAuthPanel();
 });
 
-profileLogoutButton.addEventListener("click", () => {
-  clearAuthToken();
-  currentUser = null;
-  renderSession();
-  closeAuthPanel();
-  setAuthMessage("You signed out successfully.", "success");
-});
+if (profileLogoutButton) {
+  profileLogoutButton.addEventListener("click", () => {
+    clearAuthToken();
+    currentUser = null;
+    renderSession();
+    closeAuthPanel();
+    setAuthMessage("You signed out successfully.", "success");
+  });
+}
 
 closeAuthPanelButton.addEventListener("click", closeAuthPanel);
 authPanelOverlay.addEventListener("click", closeAuthPanel);
-profileForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await saveProfile();
-});
+if (profileForm) {
+  profileForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await saveProfile();
+  });
+}
 
 menu.addEventListener("click", (event) => {
   const button = event.target.closest(".add-to-cart");

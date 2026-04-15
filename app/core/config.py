@@ -8,6 +8,7 @@ load_dotenv(override=True)
 BASE_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = BASE_DIR / "app" / "static"
 PRODUCT_IMAGES_DIR = STATIC_DIR / "images"
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pizzeria.db").strip()
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://127.0.0.1:5500").rstrip("/")
