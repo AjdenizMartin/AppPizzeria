@@ -5,10 +5,12 @@ export interface Product {
   price: number;
   category: string;
   image_url: string | null;
+  is_available: boolean;
 }
 
 export interface CartItem extends Product {
   quantity: number;
+  extras?: string;
 }
 
 export interface User {
@@ -46,7 +48,18 @@ export interface PrintJob {
 export interface Order {
   id: number;
   status: string;
+  customer_name: string;
+  customer_email: string | null;
+  customer_phone: string;
+  delivery_address: string;
+  delivery_city: string;
+  delivery_postal_code: string;
+  delivery_notes: string | null;
+  payment_method: string;
+  delivery_fee: number;
   total_price: number;
+  created_at: string;
+  updated_at: string;
   items: OrderItem[];
   print_jobs: PrintJob[];
 }
@@ -88,4 +101,24 @@ export interface OpsStatusResponse {
 export interface AuditEventsResponse {
   events: Array<{ event: string; detail: string; timestamp: string }>;
   count: number;
+}
+
+export interface TopProductSold {
+  product_id: number;
+  product_name: string;
+  quantity_sold: number;
+  revenue: number;
+}
+
+export interface SalesReportResponse {
+  date: string;
+  total_orders: number;
+  paid_or_completed_orders: number;
+  cancelled_orders: number;
+  revenue_total: number;
+  cash_total: number;
+  card_total: number;
+  average_ticket: number;
+  total_items_sold: number;
+  top_products: TopProductSold[];
 }

@@ -16,6 +16,7 @@ export function ProductCard({ product, onImageError }: ProductCardProps) {
   const { addItem } = useCart();
 
   const handleAddToCart = () => {
+    if (!product.is_available) return;
     addItem(product);
   };
 
@@ -41,9 +42,10 @@ export function ProductCard({ product, onImageError }: ProductCardProps) {
           </div>
           <button
             onClick={handleAddToCart}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            disabled={!product.is_available}
+            className="bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            Add
+            {product.is_available ? 'Add' : 'Sold out'}
           </button>
         </div>
       </div>

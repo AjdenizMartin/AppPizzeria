@@ -3,6 +3,21 @@ from sqlalchemy.orm import Session
 from app.database import models
 
 
+def _order_payload(product_id: int) -> dict:
+    return {
+        "items": [{"product_id": product_id, "quantity": 1, "extras": ""}],
+        "customer_name": "Angel Client",
+        "customer_email": "client@example.com",
+        "customer_phone": "0899730419",
+        "delivery_address": "Bastion Quay c33",
+        "delivery_city": "Athlone",
+        "delivery_postal_code": "N37XF78",
+        "delivery_notes": "",
+        "payment_method": "card",
+        "delivery_fee": 2.5,
+    }
+
+
 def test_checkout_returns_url(client, monkeypatch):
     def fake_create_checkout(items, *, order_id=None):
         assert len(items) == 1
@@ -82,7 +97,7 @@ def test_stripe_webhook_marks_accepted_and_enqueues_print_job(
 
     create_order_response = client.post(
         "/orders",
-        json={"items": [{"product_id": product.id, "quantity": 1, "extras": ""}]},
+        json=_order_payload(product.id),
     )
     assert create_order_response.status_code == 201
     order_id = create_order_response.json()["order_id"]
@@ -126,6 +141,35 @@ def test_stripe_webhook_rejects_missing_secret_in_production(client, monkeypatch
 
     assert response.status_code == 503
     assert "STRIPE_WEBHOOK_SECRET" in response.json()["detail"]
+
+
+def test_non_completed_webhook_does_not_mark_order_paid(client, db_session: Session, monkeypatch):
+    product = models.Product(
+        name="Webhook Keep Created",
+        price=10.0,
+        category="Pizzas",
+        description="No payment confirmation",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    create_order_response = client.post("/orders", json=_order_payload(product.id))
+    assert create_order_response.status_code == 201
+    order_id = create_order_response.json()["order_id"]
+
+    def fake_construct_event(payload, signature):
+        return {"type": "checkout.session.async_payment_failed", "data": {"object": {}}}
+
+    monkeypatch.setattr("app.routers.payments.construct_webhook_event", fake_construct_event)
+    response = client.post("/stripe/webhook", data=b"{}")
+    assert response.status_code == 200
+    assert response.json()["ignored"] is True
+
+    db_session.expire_all()
+    order = db_session.get(models.Order, order_id)
+    assert order is not None
+    assert order.status == "created"
 
 
 def test_create_checkout_uses_consistent_success_and_cancel_urls(monkeypatch):

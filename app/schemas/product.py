@@ -9,6 +9,7 @@ class ProductBase(BaseModel):
     price: Decimal = Field(ge=0)
     category: str = Field(max_length=100)
     image_url: str | None = Field(default=None, max_length=500)
+    is_available: bool = True
 
 
 class ProductRead(ProductBase):

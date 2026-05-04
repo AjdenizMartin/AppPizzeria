@@ -28,6 +28,7 @@ async def create_product_endpoint(
     price: float = Form(...),
     category: str = Form(...),
     description: str = Form(""),
+    is_available: bool = Form(True),
     file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     _current_admin=Depends(get_current_admin),
@@ -38,6 +39,7 @@ async def create_product_endpoint(
         price=price,
         category=category,
         description=description,
+        is_available=is_available,
         file=file,
     )
 
@@ -63,6 +65,7 @@ async def update_product_endpoint(
     price: float = Form(...),
     category: str = Form(...),
     description: str = Form(""),
+    is_available: bool = Form(True),
     file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     _current_admin=Depends(get_current_admin),
@@ -74,6 +77,7 @@ async def update_product_endpoint(
         price=price,
         category=category,
         description=description,
+        is_available=is_available,
         file=file,
     )
 

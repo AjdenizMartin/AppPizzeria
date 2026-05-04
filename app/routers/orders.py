@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_admin, get_db, get_optional_current_user
@@ -10,11 +12,13 @@ from app.schemas.order import (
     OrderCreate,
     OrderCreateResponse,
     OrderStatusUpdate,
+    OrderTrackingRead,
     PrintRequeueResponse,
 )
 from app.services.order_service import (
     create_cash_checkout_order,
     create_order,
+    get_order_for_tracking,
     list_orders,
     requeue_order_print,
     update_order_status,
@@ -70,14 +74,45 @@ def create_cash_checkout_order_endpoint(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.get("/orders/{order_id}/tracking", response_model=OrderTrackingRead)
+def get_order_tracking(
+    order_id: int,
+    email: str | None = None,
+    phone: str | None = None,
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_order_for_tracking(db, order_id=order_id, email=email, phone=phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Order not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Order not found") from None
+
+
 @router.get("/admin/orders", response_model=list[OrderAdminRead])
 def list_orders_endpoint(
-    limit: int = 50,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    search: str | None = None,
+    payment_method: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _current_admin=Depends(get_current_admin),
 ):
-    safe_limit = min(max(limit, 1), 200)
-    return list_orders(db, limit=safe_limit)
+    return list_orders(
+        db,
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+        payment_method=payment_method,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.patch("/admin/orders/{order_id}/status", response_model=OrderAdminRead)

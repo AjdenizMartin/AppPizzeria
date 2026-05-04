@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { AdminPage } from './pages/AdminPage';
+import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
@@ -55,6 +56,7 @@ function AppContent() {
           <Route path="/" element={<HomePage onImageError={handleImageError} />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
+          <Route path="/order-tracking" element={<OrderTrackingPage />} />
           <Route
             path="/admin"
             element={

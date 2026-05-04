@@ -28,6 +28,7 @@ class Product(Base):
     category = Column(String(100), nullable=False)
     description = Column(String(1000), nullable=True)
     image_url = Column(String(500), nullable=True)
+    is_available = Column(Boolean, nullable=False, default=True)
 
 
 class Order(Base):
@@ -35,9 +36,19 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    customer_name = Column(String(200), nullable=False)
     customer_email = Column(String(255), nullable=True)
+    customer_phone = Column(String(30), nullable=False)
+    delivery_address = Column(String(500), nullable=False)
+    delivery_city = Column(String(100), nullable=False)
+    delivery_postal_code = Column(String(20), nullable=False)
+    delivery_notes = Column(String(1000), nullable=True)
+    payment_method = Column(String(20), nullable=False, default="card")
+    delivery_fee = Column(Numeric(10, 2), nullable=False, default=0)
     status = Column(String(50), default="created")
     total_price = Column(Numeric(10, 2))
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
     items = relationship("OrderItem", back_populates="order")
     print_jobs = relationship("PrintJob", back_populates="order")
     user = relationship("User", back_populates="orders")

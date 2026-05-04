@@ -19,6 +19,7 @@ from app.core.config import (
     FRONTEND_DIR,
     PRINT_FAILURE_ALERT_THRESHOLD,
     STATIC_DIR,
+    validate_production_config,
 )
 from app.core.dependencies import get_current_admin
 from app.core.limiter import limiter
@@ -70,9 +71,8 @@ def _build_operational_alerts() -> tuple[list[str], dict[str, float]]:
 
 def _validate_startup_configuration() -> None:
     if APP_ENV == "production" and AUTO_CREATE_TABLES:
-        raise RuntimeError(
-            "Unsafe configuration: AUTO_CREATE_TABLES must be false in production"
-        )
+        raise RuntimeError("Unsafe configuration: AUTO_CREATE_TABLES must be false in production")
+    validate_production_config()
 
 
 _validate_startup_configuration()
@@ -146,6 +146,22 @@ async def request_observability_middleware(request: Request, call_next):
             status_code=response.status_code,
             latency_ms=latency_ms,
         ),
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://js.stripe.com; "
+        "connect-src 'self' https://api.stripe.com https://checkout.stripe.com; "
+        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self' data:; "
+        "frame-src https://js.stripe.com https://checkout.stripe.com; "
+        "base-uri 'self'; "
+        "form-action 'self' https://checkout.stripe.com; "
+        "frame-ancestors 'none'"
     )
     return response
 

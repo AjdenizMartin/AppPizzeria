@@ -7,7 +7,7 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
-  const { items, removeItem, updateQuantity, getSubtotal, getTotal, deliveryFee, clearCart } = useCart();
+  const { items, removeItem, updateQuantity, updateExtras, getSubtotal, getTotal, deliveryFee, clearCart } = useCart();
 
   if (!isOpen) return null;
 
@@ -41,6 +41,13 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                     <p className="text-amber-600 font-semibold">
                       €{Number(item.price).toFixed(2)}
                     </p>
+                    <input
+                      value={item.extras || ''}
+                      onChange={(event) => updateExtras(item.id, event.target.value)}
+                      className="mt-2 w-full rounded border px-2 py-1 text-xs"
+                      placeholder="Item note (e.g. no onion, extra cheese)"
+                      maxLength={500}
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <button

@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import PRINT_JOB_MAX_ATTEMPTS
@@ -13,16 +13,50 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def list_recent_orders(db: Session, *, limit: int = 50) -> list[models.Order]:
+def list_recent_orders(
+    db: Session,
+    *,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    search: str | None = None,
+    payment_method: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[models.Order]:
     stmt = (
         select(models.Order)
         .options(
             joinedload(models.Order.items),
             joinedload(models.Order.print_jobs),
         )
-        .order_by(models.Order.id.desc())
-        .limit(limit)
     )
+
+    if status:
+        stmt = stmt.where(models.Order.status == status.strip().lower())
+
+    if payment_method:
+        stmt = stmt.where(models.Order.payment_method == payment_method.strip().lower())
+
+    if date_from:
+        from_dt = datetime.combine(date_from, datetime.min.time())
+        stmt = stmt.where(models.Order.created_at >= from_dt)
+    if date_to:
+        to_dt = datetime.combine(date_to, datetime.max.time())
+        stmt = stmt.where(models.Order.created_at <= to_dt)
+
+    normalized_search = (search or "").strip()
+    if normalized_search:
+        predicates = [
+            models.Order.customer_name.ilike(f"%{normalized_search}%"),
+            models.Order.customer_phone.ilike(f"%{normalized_search}%"),
+            models.Order.customer_email.ilike(f"%{normalized_search}%"),
+        ]
+        if normalized_search.isdigit():
+            predicates.append(models.Order.id == int(normalized_search))
+        stmt = stmt.where(or_(*predicates))
+
+    stmt = stmt.order_by(models.Order.id.desc()).limit(limit).offset(offset)
     return list(db.scalars(stmt).unique().all())
 
 

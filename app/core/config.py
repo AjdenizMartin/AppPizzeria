@@ -54,3 +54,33 @@ CORS_ORIGINS = [
 ]
 if not CORS_ORIGINS:
     CORS_ORIGINS = [FRONTEND_BASE_URL]
+
+DEFAULT_SECRET_KEY = "dev-secret-key-change-me"
+
+
+def validate_production_config() -> None:
+    if APP_ENV != "production":
+        return
+
+    errors: list[str] = []
+    if AUTO_CREATE_TABLES:
+        errors.append("AUTO_CREATE_TABLES must be false in production")
+    if not SECRET_KEY or SECRET_KEY == DEFAULT_SECRET_KEY:
+        errors.append("SECRET_KEY must be set to a non-default value in production")
+    if not STRIPE_KEY:
+        errors.append("STRIPE_KEY is required in production")
+    if not STRIPE_WEBHOOK_SECRET:
+        errors.append("STRIPE_WEBHOOK_SECRET is required in production")
+    if not PRINT_AGENT_KEY:
+        errors.append("PRINT_AGENT_KEY is required in production")
+    if DATABASE_URL.startswith("sqlite"):
+        errors.append("DATABASE_URL must not use sqlite in production")
+    if FRONTEND_BASE_URL.startswith("http://127.0.0.1") or FRONTEND_BASE_URL.startswith(
+        "http://localhost"
+    ):
+        errors.append("FRONTEND_BASE_URL must not be localhost in production")
+    if any(origin.strip() == "*" for origin in CORS_ORIGINS):
+        errors.append("CORS_ORIGINS must not contain wildcard '*' in production")
+
+    if errors:
+        raise RuntimeError("Unsafe production configuration: " + "; ".join(errors))

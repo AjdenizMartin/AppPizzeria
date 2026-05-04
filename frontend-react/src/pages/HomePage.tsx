@@ -10,6 +10,7 @@ interface HomePageProps {
 
 export function HomePage({ onImageError }: HomePageProps) {
   const { products, loading, error, getCategories, search } = useProducts();
+  const availableCount = products.filter((product) => product.is_available).length;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -63,7 +64,7 @@ export function HomePage({ onImageError }: HomePageProps) {
       <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 md:p-8">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Fresh & Delicious</h1>
         <p className="text-amber-100 text-lg">
-          {products.length} items ready to order
+          {availableCount} items ready to order
         </p>
       </div>
 

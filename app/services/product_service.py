@@ -15,6 +15,7 @@ async def create_product(
     price: float,
     category: str,
     description: str = "",
+    is_available: bool = True,
     file=None,
 ) -> models.Product:
     image_url = save_product_image(file) if file else None
@@ -25,6 +26,7 @@ async def create_product(
         category=category,
         description=description,
         image_url=image_url,
+        is_available=is_available,
     )
 
     db.add(product)
@@ -41,6 +43,7 @@ async def update_product(
     price: float,
     category: str,
     description: str = "",
+    is_available: bool = True,
     file=None,
 ) -> models.Product | None:
     product = db.get(models.Product, product_id)
@@ -52,6 +55,7 @@ async def update_product(
     product.price = price
     product.category = category
     product.description = description
+    product.is_available = is_available
 
     if file is not None:
         new_image_url = save_product_image(file)

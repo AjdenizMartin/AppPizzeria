@@ -7,6 +7,7 @@ import type {
   OpsStatusResponse,
   Order,
   Product,
+  SalesReportResponse,
   User,
 } from '../types';
 
@@ -130,6 +131,15 @@ export const productService = {
 export const orderService = {
   async create(payload: {
     items: { product_id: number; quantity: number; extras?: string }[];
+    customer_name: string;
+    customer_email: string;
+    customer_phone: string;
+    delivery_address: string;
+    delivery_city: string;
+    delivery_postal_code: string;
+    delivery_notes?: string;
+    payment_method: 'card' | 'cash';
+    delivery_fee: number;
   }): Promise<{ order_id: number; total: number; status: string }> {
     const { data } = await api.post('/orders', payload);
     return data;
@@ -137,6 +147,15 @@ export const orderService = {
 
   async createCashCheckout(payload: {
     items: { product_id: number; quantity: number; extras?: string }[];
+    customer_name: string;
+    customer_email: string;
+    customer_phone: string;
+    delivery_address: string;
+    delivery_city: string;
+    delivery_postal_code: string;
+    delivery_notes?: string;
+    payment_method: 'card' | 'cash';
+    delivery_fee: number;
   }): Promise<{ order_id: number; total: number; status: string; payment_method: string }> {
     const { data } = await api.post('/orders/cash-checkout', payload);
     return data;
@@ -158,6 +177,27 @@ export const orderService = {
     return data;
   },
 
+  async getAdminOrdersFiltered(payload: {
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+    payment_method?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Order[]> {
+    const params = new URLSearchParams();
+    if (payload.status) params.set('status', payload.status);
+    if (payload.date_from) params.set('date_from', payload.date_from);
+    if (payload.date_to) params.set('date_to', payload.date_to);
+    if (payload.search) params.set('search', payload.search);
+    if (payload.payment_method) params.set('payment_method', payload.payment_method);
+    params.set('limit', String(payload.limit ?? 40));
+    params.set('offset', String(payload.offset ?? 0));
+    const { data } = await api.get<Order[]>(`/admin/orders?${params.toString()}`);
+    return data;
+  },
+
   async updateStatus(orderId: number, status: string): Promise<Order> {
     const { data } = await api.patch<Order>(`/admin/orders/${orderId}/status`, { status });
     return data;
@@ -167,6 +207,21 @@ export const orderService = {
     const { data } = await api.post<{ order_id: number; print_job: PrintJob }>(
       `/admin/orders/${orderId}/reprint`
     );
+    return data;
+  },
+
+  async getTracking(
+    orderId: number,
+    query: { email?: string; phone?: string }
+  ): Promise<Order> {
+    const params = new URLSearchParams();
+    if (query.email) {
+      params.set('email', query.email);
+    }
+    if (query.phone) {
+      params.set('phone', query.phone);
+    }
+    const { data } = await api.get<Order>(`/orders/${orderId}/tracking?${params.toString()}`);
     return data;
   },
 };
@@ -195,6 +250,13 @@ export const observabilityService = {
 
   async resetMetrics(): Promise<{ ok: boolean; message: string }> {
     const { data } = await api.post<{ ok: boolean; message: string }>('/admin/metrics/reset');
+    return data;
+  },
+};
+
+export const reportsService = {
+  async getDailySales(date: string): Promise<SalesReportResponse> {
+    const { data } = await api.get<SalesReportResponse>(`/admin/reports/sales?date=${date}`);
     return data;
   },
 };

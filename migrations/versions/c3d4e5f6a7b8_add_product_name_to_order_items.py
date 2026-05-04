@@ -18,7 +18,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("order_items", sa.Column("product_name", sa.String(length=200), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("order_items")}
+    if "product_name" not in columns:
+        op.add_column(
+            "order_items",
+            sa.Column("product_name", sa.String(length=200), nullable=True),
+        )
 
     op.execute(
         """
@@ -37,12 +44,13 @@ def upgrade() -> None:
         """
     )
 
-    op.alter_column(
-        "order_items",
-        "product_name",
-        existing_type=sa.String(length=200),
-        nullable=False,
-    )
+    if "product_name" not in columns:
+        op.alter_column(
+            "order_items",
+            "product_name",
+            existing_type=sa.String(length=200),
+            nullable=False,
+        )
 
 
 def downgrade() -> None:

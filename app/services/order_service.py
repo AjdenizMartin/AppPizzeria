@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -35,12 +36,33 @@ def create_order(
     if not payload.items:
         raise ValueError("No items provided")
 
+    customer_name = payload.customer_name.strip()
+    customer_email = payload.customer_email.strip().lower()
+    customer_phone = payload.customer_phone.strip()
+    delivery_address = payload.delivery_address.strip()
+    delivery_city = payload.delivery_city.strip()
+    delivery_postal_code = payload.delivery_postal_code.strip()
+    delivery_notes = payload.delivery_notes.strip()
+
+    if not customer_name or not customer_email or not customer_phone:
+        raise ValueError("Customer name, email and phone are required")
+    if not delivery_address or not delivery_city or not delivery_postal_code:
+        raise ValueError("Delivery address, city and postal code are required")
+
     try:
         order = models.Order(
             status="created",
             total_price=Decimal("0"),
             user_id=current_user.id if current_user else None,
-            customer_email=(current_user.email if current_user else None),
+            customer_name=customer_name,
+            customer_email=customer_email,
+            customer_phone=customer_phone,
+            delivery_address=delivery_address,
+            delivery_city=delivery_city,
+            delivery_postal_code=delivery_postal_code,
+            delivery_notes=delivery_notes or None,
+            payment_method=payload.payment_method,
+            delivery_fee=Decimal(str(payload.delivery_fee)),
         )
         db.add(order)
         db.flush()
@@ -53,6 +75,8 @@ def create_order(
 
             if product is None:
                 continue
+            if not product.is_available:
+                raise ValueError(f"Product '{product.name}' is sold out")
 
             total += Decimal(str(product.price)) * item.quantity
             created_items += 1
@@ -71,14 +95,14 @@ def create_order(
         if created_items == 0:
             raise ValueError("No valid products found")
 
-        order.total_price = total
+        order.total_price = total + Decimal(str(payload.delivery_fee))
         db.commit()
         db.refresh(order)
     except Exception:
         db.rollback()
         raise
 
-    return {"order_id": order.id, "total": total, "status": order.status}
+    return {"order_id": order.id, "total": order.total_price, "status": order.status}
 
 
 def create_cash_checkout_order(
@@ -87,7 +111,8 @@ def create_cash_checkout_order(
     *,
     current_user: models.User | None = None,
 ) -> dict[str, float | int | str]:
-    order_data = create_order(db, payload, current_user=current_user)
+    cash_payload = payload.model_copy(update={"payment_method": "cash"})
+    order_data = create_order(db, cash_payload, current_user=current_user)
     try:
         order = get_order_with_details(db, int(order_data["order_id"]))
 
@@ -128,6 +153,7 @@ def mark_order_paid_after_checkout(db: Session, *, order_id: int) -> models.Orde
         raise ValueError("Cannot mark a cancelled order as paid")
 
     order.status = "accepted"
+    order.payment_method = "card"
     enqueue_print_job(
         db,
         order,
@@ -139,8 +165,53 @@ def mark_order_paid_after_checkout(db: Session, *, order_id: int) -> models.Orde
     return order
 
 
-def list_orders(db: Session, *, limit: int = 50) -> list[models.Order]:
-    return list_recent_orders(db, limit=limit)
+def list_orders(
+    db: Session,
+    *,
+    status: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    search: str | None = None,
+    payment_method: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[models.Order]:
+    return list_recent_orders(
+        db,
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+        payment_method=payment_method,
+        limit=limit,
+        offset=offset,
+    )
+
+
+def get_order_for_tracking(
+    db: Session,
+    *,
+    order_id: int,
+    email: str | None = None,
+    phone: str | None = None,
+) -> models.Order:
+    order = get_order_with_details(db, order_id)
+    if order is None:
+        raise LookupError("Order not found")
+
+    normalized_email = (email or "").strip().lower()
+    normalized_phone = (phone or "").strip()
+    if not normalized_email and not normalized_phone:
+        raise ValueError("Email or phone is required")
+
+    email_match = bool(
+        normalized_email and (order.customer_email or "").lower() == normalized_email
+    )
+    phone_match = bool(normalized_phone and (order.customer_phone or "") == normalized_phone)
+    if not email_match and not phone_match:
+        raise PermissionError("Order not found")
+
+    return order
 
 
 def update_order_status(db: Session, *, order_id: int, next_status: str) -> models.Order:

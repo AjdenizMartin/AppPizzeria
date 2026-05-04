@@ -15,6 +15,8 @@ ENV PORT=8000
 
 WORKDIR /app
 
+RUN useradd -m -u 10001 appuser
+
 COPY pyproject.toml README.md ./
 COPY app/ ./app/
 COPY migrations/ ./migrations/
@@ -24,6 +26,8 @@ COPY print_agent/ ./print_agent/
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
 COPY --from=frontend-builder /build/frontend-react/dist ./frontend-react/dist
+
+USER appuser
 
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

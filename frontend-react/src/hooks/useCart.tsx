@@ -10,6 +10,7 @@ type CartContextValue = {
   addItem: (product: Product) => void;
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
+  updateExtras: (productId: number, extras: string) => void;
   clearCart: () => void;
   getSubtotal: () => number;
   getTotal: () => number;
@@ -63,6 +64,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
   }, []);
 
+  const updateExtras = useCallback((productId: number, extras: string) => {
+    const normalized = extras.slice(0, 500);
+    setItems((prev) =>
+      prev.map((item) => (item.id === productId ? { ...item, extras: normalized } : item))
+    );
+  }, []);
+
   const getSubtotal = useCallback(() => {
     return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }, [items]);
@@ -81,6 +89,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItem,
       removeItem,
       updateQuantity,
+      updateExtras,
       clearCart,
       getSubtotal,
       getTotal,
@@ -88,7 +97,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       deliveryFee: DELIVERY_FEE,
       itemCount: getItemCount(),
     }),
-    [items, addItem, removeItem, updateQuantity, clearCart, getSubtotal, getTotal, getItemCount]
+    [
+      items,
+      addItem,
+      removeItem,
+      updateQuantity,
+      updateExtras,
+      clearCart,
+      getSubtotal,
+      getTotal,
+      getItemCount,
+    ]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

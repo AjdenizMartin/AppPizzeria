@@ -27,6 +27,15 @@ class OrderItemCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     items: list[OrderItemCreate]
+    customer_name: str = Field(min_length=1, max_length=200)
+    customer_email: str = Field(min_length=3, max_length=255)
+    customer_phone: str = Field(min_length=3, max_length=30)
+    delivery_address: str = Field(min_length=3, max_length=500)
+    delivery_city: str = Field(min_length=2, max_length=100)
+    delivery_postal_code: str = Field(min_length=2, max_length=20)
+    delivery_notes: str = Field(default="", max_length=1000)
+    payment_method: Literal["card", "cash"] = "card"
+    delivery_fee: Decimal = Field(default=Decimal("2.50"), ge=0)
 
 
 class OrderCreateResponse(BaseModel):
@@ -82,7 +91,42 @@ class OrderAdminRead(BaseModel):
 
     id: int
     status: str
+    customer_name: str
+    customer_email: str | None = None
+    customer_phone: str
+    delivery_address: str
+    delivery_city: str
+    delivery_postal_code: str
+    delivery_notes: str | None = None
+    payment_method: str
+    delivery_fee: Decimal
     total_price: Decimal
+    created_at: datetime
+    updated_at: datetime
+    items: list[OrderItemRead]
+    print_jobs: list[PrintJobRead]
+
+
+class OrderTrackingRead(BaseModel):
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={Decimal: lambda v: float(v)},
+    )
+
+    id: int
+    status: str
+    customer_name: str
+    customer_email: str | None = None
+    customer_phone: str
+    delivery_address: str
+    delivery_city: str
+    delivery_postal_code: str
+    delivery_notes: str | None = None
+    payment_method: str
+    delivery_fee: Decimal
+    total_price: Decimal
+    created_at: datetime
+    updated_at: datetime
     items: list[OrderItemRead]
     print_jobs: list[PrintJobRead]
 

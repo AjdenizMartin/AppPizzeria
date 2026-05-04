@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
@@ -7,10 +7,29 @@ import { orderService } from '../services/api';
 export function CheckoutPage() {
   const navigate = useNavigate();
   const { items, getSubtotal, getTotal, deliveryFee, clearCart } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
+  const [customerName, setCustomerName] = useState(user?.full_name || '');
+  const [customerEmail, setCustomerEmail] = useState(user?.email || '');
+  const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
+  const [deliveryAddress, setDeliveryAddress] = useState(user?.address_line || '');
+  const [deliveryCity, setDeliveryCity] = useState(user?.city || '');
+  const [deliveryPostalCode, setDeliveryPostalCode] = useState(user?.postal_code || '');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    setCustomerName((current) => current || user.full_name || '');
+    setCustomerEmail((current) => current || user.email || '');
+    setCustomerPhone((current) => current || user.phone || '');
+    setDeliveryAddress((current) => current || user.address_line || '');
+    setDeliveryCity((current) => current || user.city || '');
+    setDeliveryPostalCode((current) => current || user.postal_code || '');
+  }, [user]);
 
   if (items.length === 0) {
     return (
@@ -36,14 +55,27 @@ export function CheckoutPage() {
         items: items.map((item) => ({
           product_id: item.id,
           quantity: item.quantity,
-          extras: '',
+          extras: (item.extras || '').trim(),
         })),
+        customer_name: customerName.trim(),
+        customer_email: customerEmail.trim(),
+        customer_phone: customerPhone.trim(),
+        delivery_address: deliveryAddress.trim(),
+        delivery_city: deliveryCity.trim(),
+        delivery_postal_code: deliveryPostalCode.trim(),
+        delivery_notes: deliveryNotes.trim(),
+        payment_method: paymentMethod,
+        delivery_fee: deliveryFee,
       };
 
       if (paymentMethod === 'cash') {
         const result = await orderService.createCashCheckout(orderPayload);
+        localStorage.setItem('pizzeria_last_order_contact_email', customerEmail.trim());
+        localStorage.setItem('pizzeria_last_order_contact_phone', customerPhone.trim());
         clearCart();
-        navigate(`/order-confirmation/${result.order_id}?method=cash`);
+        navigate(
+          `/order-confirmation/${result.order_id}?method=cash&email=${encodeURIComponent(customerEmail.trim())}&phone=${encodeURIComponent(customerPhone.trim())}`
+        );
       } else {
         const order = await orderService.create(orderPayload);
         const checkoutItems = items.map((item) => ({
@@ -51,12 +83,20 @@ export function CheckoutPage() {
           price: item.price,
           quantity: item.quantity,
         }));
+        localStorage.setItem('pizzeria_last_order_contact_email', customerEmail.trim());
+        localStorage.setItem('pizzeria_last_order_contact_phone', customerPhone.trim());
         const { url } = await orderService.createCheckoutSession(checkoutItems, order.order_id);
-        clearCart();
+        localStorage.setItem('pizzeria_pending_order_id', String(order.order_id));
         window.location.href = url;
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Checkout failed');
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? String((err as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Checkout failed')
+          : err instanceof Error
+            ? err.message
+            : 'Checkout failed';
+      setError(`Payment/checkout error: ${message}. Your cart is still saved, please try again.`);
     } finally {
       setLoading(false);
     }
@@ -81,11 +121,84 @@ export function CheckoutPage() {
       )}
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <h2 className="font-semibold mb-4">Delivery details</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="block">
+            <span className="text-sm text-gray-700">Full name</span>
+            <input
+              required
+              value={customerName}
+              onChange={(event) => setCustomerName(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">Email</span>
+            <input
+              required
+              type="email"
+              value={customerEmail}
+              onChange={(event) => setCustomerEmail(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">Phone</span>
+            <input
+              required
+              value={customerPhone}
+              onChange={(event) => setCustomerPhone(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="text-sm text-gray-700">Address</span>
+            <input
+              required
+              value={deliveryAddress}
+              onChange={(event) => setDeliveryAddress(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">City</span>
+            <input
+              required
+              value={deliveryCity}
+              onChange={(event) => setDeliveryCity(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">Postal code</span>
+            <input
+              required
+              value={deliveryPostalCode}
+              onChange={(event) => setDeliveryPostalCode(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="text-sm text-gray-700">Delivery notes</span>
+            <textarea
+              value={deliveryNotes}
+              onChange={(event) => setDeliveryNotes(event.target.value)}
+              className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+              rows={3}
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <h2 className="font-semibold mb-4">Order Summary</h2>
         <div className="space-y-3 mb-4">
           {items.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
-              <span>{item.name} x{item.quantity}</span>
+            <div key={item.id} className="flex justify-between text-sm gap-3">
+              <span>
+                {item.name} x{item.quantity}
+                {item.extras ? <span className="block text-xs text-gray-500">Extras: {item.extras}</span> : null}
+              </span>
               <span>€{(item.price * item.quantity).toFixed(2)}</span>
             </div>
           ))}

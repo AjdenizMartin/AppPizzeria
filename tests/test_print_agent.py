@@ -3,6 +3,21 @@ from sqlalchemy.orm import Session
 from app.database import models
 
 
+def _order_payload(product_id: int) -> dict:
+    return {
+        "items": [{"product_id": product_id, "quantity": 1, "extras": ""}],
+        "customer_name": "Angel Client",
+        "customer_email": "client@example.com",
+        "customer_phone": "0899730419",
+        "delivery_address": "Bastion Quay c33",
+        "delivery_city": "Athlone",
+        "delivery_postal_code": "N37XF78",
+        "delivery_notes": "",
+        "payment_method": "card",
+        "delivery_fee": 2.5,
+    }
+
+
 def _create_order_for_print_flow(client, db_session: Session, admin_auth_headers) -> int:
     product = models.Product(
         name="Family Deal",
@@ -16,7 +31,7 @@ def _create_order_for_print_flow(client, db_session: Session, admin_auth_headers
 
     create_response = client.post(
         "/orders",
-        json={"items": [{"product_id": product.id, "quantity": 1, "extras": ""}]},
+        json=_order_payload(product.id),
     )
     order_id = create_response.json()["order_id"]
 

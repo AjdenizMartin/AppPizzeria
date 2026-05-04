@@ -103,3 +103,48 @@ cd ..
 .venv/bin/pytest -q
 .venv/bin/ruff check app tests
 ```
+
+## Produccion (Railway + PostgreSQL)
+
+- Usar `APP_ENV=production`.
+- Usar `DATABASE_URL` de PostgreSQL (no SQLite).
+- Usar migraciones Alembic: no depender de `AUTO_CREATE_TABLES`.
+- Configurar dominio real en `FRONTEND_BASE_URL` y `CORS_ORIGINS` restringido.
+
+Variables minimas:
+
+```env
+APP_ENV=production
+DATABASE_URL=postgresql://...
+AUTO_CREATE_TABLES=false
+SECRET_KEY=<strong-random-secret>
+STRIPE_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+FRONTEND_BASE_URL=https://app.tudominio.com
+CORS_ORIGINS=https://app.tudominio.com
+ADMIN_EMAILS=owner@tudominio.com
+PRINT_AGENT_KEY=<strong-random-secret>
+SMTP_HOST=smtp.provider.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASSWORD=...
+SMTP_FROM_EMAIL=orders@tudominio.com
+SMTP_USE_TLS=true
+```
+
+Checklist predeploy:
+
+```bash
+python scripts/validate_predeploy.py
+alembic upgrade head
+```
+
+Railway:
+
+1. Crear servicio backend y vincular PostgreSQL.
+2. Configurar variables del bloque anterior.
+3. Build command: `pip install .`
+4. Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. Ejecutar migraciones antes de go-live: `alembic upgrade head`.
+6. Stripe webhook (produccion): `https://app.tudominio.com/stripe/webhook` con evento `checkout.session.completed`.
+7. Frontend React se sirve desde `frontend-react/dist` cuando existe build en la imagen.
