@@ -28,7 +28,7 @@ Mínimo obligatorio:
 
 ```env
 PRINT_AGENT_KEY=la_misma_clave_que_backend
-PRINT_AGENT_API_URL=http://127.0.0.1:8000
+PRINT_AGENT_API_URL=https://app.tudominio.com
 ```
 
 Reiniciar tras cambios:

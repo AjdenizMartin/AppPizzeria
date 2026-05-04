@@ -1,7 +1,10 @@
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 
 from app.database import models
 from app.schemas.order import OrderCreate
+from app.services.email_service import send_order_confirmation_email
 from app.services.printing_service import (
     enqueue_print_job,
     get_order_with_details,
@@ -23,62 +26,86 @@ ALLOWED_ORDER_TRANSITIONS = {
 }
 
 
-def create_order(db: Session, payload: OrderCreate) -> dict[str, float | int | str]:
+def create_order(
+    db: Session,
+    payload: OrderCreate,
+    *,
+    current_user: models.User | None = None,
+) -> dict[str, Decimal | int | str]:
     if not payload.items:
         raise ValueError("No items provided")
 
-    order = models.Order(status="created", total_price=0)
-    db.add(order)
-    db.flush()
-
-    total = 0.0
-    created_items = 0
-
-    for item in payload.items:
-        product = db.get(models.Product, item.product_id)
-
-        if product is None:
-            continue
-
-        total += product.price * item.quantity
-        created_items += 1
-
-        db.add(
-            models.OrderItem(
-                order_id=order.id,
-                product_id=product.id,
-                quantity=item.quantity,
-                price=product.price,
-                extras=item.extras,
-            )
+    try:
+        order = models.Order(
+            status="created",
+            total_price=Decimal("0"),
+            user_id=current_user.id if current_user else None,
+            customer_email=(current_user.email if current_user else None),
         )
+        db.add(order)
+        db.flush()
 
-    if created_items == 0:
+        total = Decimal("0")
+        created_items = 0
+
+        for item in payload.items:
+            product = db.get(models.Product, item.product_id)
+
+            if product is None:
+                continue
+
+            total += Decimal(str(product.price)) * item.quantity
+            created_items += 1
+
+            db.add(
+                models.OrderItem(
+                    order_id=order.id,
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity=item.quantity,
+                    price=product.price,
+                    extras=item.extras,
+                )
+            )
+
+        if created_items == 0:
+            raise ValueError("No valid products found")
+
+        order.total_price = total
+        db.commit()
+        db.refresh(order)
+    except Exception:
         db.rollback()
-        raise ValueError("No valid products found")
-
-    order.total_price = total
-    db.commit()
-    db.refresh(order)
+        raise
 
     return {"order_id": order.id, "total": total, "status": order.status}
 
 
-def create_cash_checkout_order(db: Session, payload: OrderCreate) -> dict[str, float | int | str]:
-    order_data = create_order(db, payload)
-    order = get_order_with_details(db, int(order_data["order_id"]))
+def create_cash_checkout_order(
+    db: Session,
+    payload: OrderCreate,
+    *,
+    current_user: models.User | None = None,
+) -> dict[str, float | int | str]:
+    order_data = create_order(db, payload, current_user=current_user)
+    try:
+        order = get_order_with_details(db, int(order_data["order_id"]))
 
-    if order is None:
-        raise LookupError("Order not found after creation")
+        if order is None:
+            raise LookupError("Order not found after creation")
 
-    order.status = "accepted"
-    enqueue_print_job(
-        db,
-        order,
-        idempotency_key=f"order-{order.id}-cash-checkout",
-    )
-    db.commit()
-    db.refresh(order)
+        order.status = "accepted"
+        enqueue_print_job(
+            db,
+            order,
+            idempotency_key=f"order-{order.id}-cash-checkout",
+        )
+        db.commit()
+        db.refresh(order)
+    except Exception:
+        db.rollback()
+        raise
+    send_order_confirmation_email(order, payment_method="cash")
 
     return {
         "order_id": order.id,
@@ -86,6 +113,30 @@ def create_cash_checkout_order(db: Session, payload: OrderCreate) -> dict[str, f
         "status": order.status,
         "payment_method": "cash",
     }
+
+
+def mark_order_paid_after_checkout(db: Session, *, order_id: int) -> models.Order:
+    order = get_order_with_details(db, order_id)
+    if order is None:
+        raise LookupError("Order not found")
+
+    current_status = (order.status or "created").lower()
+    if current_status in {"printing", "printed", "ready", "delivered"}:
+        return order
+
+    if current_status == "cancelled":
+        raise ValueError("Cannot mark a cancelled order as paid")
+
+    order.status = "accepted"
+    enqueue_print_job(
+        db,
+        order,
+        idempotency_key=f"order-{order.id}-stripe-paid",
+    )
+    db.commit()
+    db.refresh(order)
+    send_order_confirmation_email(order, payment_method="card")
+    return order
 
 
 def list_orders(db: Session, *, limit: int = 50) -> list[models.Order]:
@@ -109,16 +160,20 @@ def update_order_status(db: Session, *, order_id: int, next_status: str) -> mode
             f"Invalid transition from '{current_status}' to '{normalized_next}'"
         )
 
-    order.status = normalized_next
+    try:
+        order.status = normalized_next
 
-    if normalized_next == "accepted":
-        enqueue_print_job(
-            db,
-            order,
-            idempotency_key=f"order-{order.id}-accepted",
-        )
+        if normalized_next == "accepted":
+            enqueue_print_job(
+                db,
+                order,
+                idempotency_key=f"order-{order.id}-accepted",
+            )
 
-    db.commit()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     refreshed = get_order_with_details(db, order.id)
     if refreshed is None:
         raise LookupError("Order not found after update")
@@ -133,8 +188,12 @@ def requeue_order_print(db: Session, *, order_id: int) -> tuple[models.Order, mo
     if order.status == "cancelled":
         raise ValueError("Cancelled orders cannot be printed")
 
-    job = request_reprint(db, order)
-    db.commit()
+    try:
+        job = request_reprint(db, order)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     refreshed_order = get_order_with_details(db, order.id)
     if refreshed_order is None:

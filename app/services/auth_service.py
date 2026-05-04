@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.config import ADMIN_EMAILS
+from app.core.config import ADMIN_EMAILS, APP_ENV
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database.models import User
 from app.schemas.user import TokenResponse, UserLogin, UserProfileUpdate, UserRead, UserRegister
@@ -21,6 +21,8 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
 
 def _first_user_should_be_admin(db: Session) -> bool:
+    if APP_ENV == "production":
+        return False
     user_count = db.scalar(select(func.count()).select_from(User)) or 0
     return user_count == 0
 
@@ -37,6 +39,11 @@ def register_user(db: Session, payload: UserRegister) -> User:
         email=email,
         hashed_password=hash_password(payload.password),
         is_admin=is_admin,
+        full_name=payload.full_name.strip() or None,
+        address_line=payload.address_line.strip() or None,
+        city=payload.city.strip() or None,
+        postal_code=payload.postal_code.strip() or None,
+        phone=payload.phone.strip() or None,
     )
     db.add(user)
     db.commit()

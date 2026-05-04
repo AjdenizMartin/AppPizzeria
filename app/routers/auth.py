@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, get_db
+from app.core.limiter import limiter
 from app.database.models import User
 from app.schemas.user import (
     TokenResponse,
@@ -21,7 +22,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(request: Request, payload: UserRegister, db: Session = Depends(get_db)):
     try:
         user = register_user(db, payload)
     except ValueError as exc:
@@ -31,7 +33,8 @@ def register(payload: UserRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, payload: UserLogin, db: Session = Depends(get_db)):
     user = authenticate_user(db, payload)
 
     if user is None:

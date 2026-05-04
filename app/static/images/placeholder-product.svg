@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-label="Product placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#FFE9C9"/>
+      <stop offset="100%" stop-color="#FFB266"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="520" fill="url(#bg)"/>
+  <circle cx="400" cy="250" r="135" fill="#F97332" opacity="0.22"/>
+  <circle cx="400" cy="250" r="92" fill="#E55A08" opacity="0.2"/>
+  <text x="400" y="432" text-anchor="middle" fill="#8A3A10" font-size="42" font-family="sans-serif">
+    Pizzeria
+  </text>
+</svg>

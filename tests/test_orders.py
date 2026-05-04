@@ -136,3 +136,36 @@ def test_cash_checkout_creates_accepted_order_and_print_job(
     assert latest_order["status"] == "accepted"
     assert len(latest_order["print_jobs"]) == 1
     assert latest_order["print_jobs"][0]["status"] == "pending"
+
+
+def test_create_order_with_authenticated_user_stores_customer_email(client, db_session: Session):
+    register_response = client.post(
+        "/auth/register",
+        json={
+            "email": "buyer@example.com",
+            "password": "secret123",
+        },
+    )
+    token = register_response.json()["access_token"]
+
+    product = models.Product(
+        name="Veg Pizza",
+        price=10.5,
+        category="Pizzas",
+        description="Veggie",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    response = client.post(
+        "/orders",
+        json={"items": [{"product_id": product.id, "quantity": 1, "extras": ""}]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+
+    order_id = response.json()["order_id"]
+    order = db_session.get(models.Order, order_id)
+    assert order is not None
+    assert order.customer_email == "buyer@example.com"

@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +22,7 @@ PrintJobStatusInput = Literal["pending", "printing", "printed", "failed"]
 class OrderItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(default=1, ge=1)
-    extras: str = ""
+    extras: str = Field(default="", max_length=500)
 
 
 class OrderCreate(BaseModel):
@@ -46,12 +47,16 @@ class OrderStatusUpdate(BaseModel):
 
 
 class OrderItemRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={Decimal: lambda v: float(v)},
+    )
 
     id: int
     product_id: int
+    product_name: str
     quantity: int
-    price: float
+    price: Decimal
     extras: str | None = None
 
 
@@ -70,11 +75,14 @@ class PrintJobRead(BaseModel):
 
 
 class OrderAdminRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={Decimal: lambda v: float(v)},
+    )
 
     id: int
     status: str
-    total_price: float
+    total_price: Decimal
     items: list[OrderItemRead]
     print_jobs: list[PrintJobRead]
 

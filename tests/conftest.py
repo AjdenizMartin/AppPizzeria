@@ -37,9 +37,12 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
+    app.state.limiter.enabled = False
+
     with TestClient(app) as test_client:
         yield test_client
 
+    app.state.limiter.enabled = True
     app.dependency_overrides.clear()
 
 
@@ -52,5 +55,6 @@ def admin_auth_headers(client: TestClient) -> dict[str, str]:
             "password": "secret123",
         },
     )
+    assert response.status_code == 201, f"Registration failed: {response.json()}"
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

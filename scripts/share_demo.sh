@@ -34,7 +34,7 @@ sleep 2
 
 echo
 echo "Backend y frontend disponibles localmente en:"
-echo "http://$HOST:$PORT/app/index.html"
+echo "http://$HOST:$PORT/"
 echo
 echo "Abriendo túnel público (Cloudflare)..."
 echo "Comparte la URL https://*.trycloudflare.com que aparecerá abajo."

@@ -100,3 +100,53 @@ def test_update_profile_requires_auth(client):
     )
 
     assert response.status_code == 401
+
+
+def test_register_stores_initial_profile_fields(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "profiled@example.com",
+            "password": "secret123",
+            "full_name": "Jane Customer",
+            "address_line": "12 Market Street",
+            "city": "Dublin",
+            "postal_code": "D01X2Y3",
+            "phone": "+353850000000",
+        },
+    )
+
+    assert response.status_code == 201
+    user = response.json()["user"]
+    assert user["full_name"] == "Jane Customer"
+    assert user["address_line"] == "12 Market Street"
+    assert user["city"] == "Dublin"
+    assert user["postal_code"] == "D01X2Y3"
+    assert user["phone"] == "+353850000000"
+
+
+def test_first_registered_user_is_not_admin_in_production(client, monkeypatch):
+    monkeypatch.setattr("app.services.auth_service.APP_ENV", "production")
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "prod-owner@example.com",
+            "password": "secret123",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["user"]["is_admin"] is False
+
+
+def test_register_rejects_invalid_email(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "not-an-email",
+            "password": "secret123",
+        },
+    )
+
+    assert response.status_code == 422

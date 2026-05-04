@@ -1,0 +1,33 @@
+name: Promote Staging to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to promote"
+        required: true
+        type: string
+
+jobs:
+  approval-gate:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Confirm promotion target
+        run: |
+          echo "Promoting release: ${{ inputs.release_tag }}"
+          echo "Manual approval required by production environment reviewers."
+
+  production-checklist:
+    runs-on: ubuntu-latest
+    needs: approval-gate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Print rollback reminder
+        run: |
+          echo "Before deploy, verify rollback docs:"
+          echo "- ops/deploy/rollback_runbook.md"
+          echo "- ops/deploy/staging_to_prod_checklist.md"

@@ -43,7 +43,8 @@ def format_ticket(job: dict) -> str:
 
     for item in order["items"]:
         extras = f" ({item['extras']})" if item.get("extras") else ""
-        lines.append(f"x{item['quantity']} Product #{item['product_id']}{extras}")
+        product_name = item.get("product_name") or f"Product #{item['product_id']}"
+        lines.append(f"x{item['quantity']} {product_name}{extras}")
 
     lines.extend(
         [

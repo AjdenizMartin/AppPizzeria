@@ -7,6 +7,7 @@ class PrintAgentPullRequest(BaseModel):
 
 class PrintAgentJobItem(BaseModel):
     product_id: int
+    product_name: str
     quantity: int
     price: float
     extras: str = ""

@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_admin, get_db
+from app.core.dependencies import get_current_admin, get_db, get_optional_current_user
+from app.core.observability import log_business_event
+from app.database.models import User
 from app.schemas.order import (
     CashCheckoutResponse,
     OrderAdminRead,
@@ -22,9 +24,21 @@ router = APIRouter(tags=["orders"])
 
 
 @router.post("/orders", response_model=OrderCreateResponse, status_code=status.HTTP_201_CREATED)
-def create_order_endpoint(payload: OrderCreate, db: Session = Depends(get_db)):
+def create_order_endpoint(
+    request: Request,
+    payload: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+):
     try:
-        return create_order(db, payload)
+        created = create_order(db, payload, current_user=current_user)
+        log_business_event(
+            event="order_created",
+            request=request,
+            order_id=int(created["order_id"]),
+            status=str(created["status"]),
+        )
+        return created
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -34,9 +48,22 @@ def create_order_endpoint(payload: OrderCreate, db: Session = Depends(get_db)):
     response_model=CashCheckoutResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_cash_checkout_order_endpoint(payload: OrderCreate, db: Session = Depends(get_db)):
+def create_cash_checkout_order_endpoint(
+    request: Request,
+    payload: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+):
     try:
-        return create_cash_checkout_order(db, payload)
+        created = create_cash_checkout_order(db, payload, current_user=current_user)
+        log_business_event(
+            event="order_cash_checkout",
+            request=request,
+            order_id=int(created["order_id"]),
+            payment_method="cash",
+            status=str(created["status"]),
+        )
+        return created
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LookupError as exc:
@@ -55,13 +82,21 @@ def list_orders_endpoint(
 
 @router.patch("/admin/orders/{order_id}/status", response_model=OrderAdminRead)
 def update_order_status_endpoint(
+    request: Request,
     order_id: int,
     payload: OrderStatusUpdate,
     db: Session = Depends(get_db),
     _current_admin=Depends(get_current_admin),
 ):
     try:
-        return update_order_status(db, order_id=order_id, next_status=payload.status)
+        updated = update_order_status(db, order_id=order_id, next_status=payload.status)
+        log_business_event(
+            event="order_status_updated",
+            request=request,
+            order_id=updated.id,
+            status=updated.status,
+        )
+        return updated
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -70,6 +105,7 @@ def update_order_status_endpoint(
 
 @router.post("/admin/orders/{order_id}/reprint", response_model=PrintRequeueResponse)
 def reprint_order_endpoint(
+    request: Request,
     order_id: int,
     db: Session = Depends(get_db),
     _current_admin=Depends(get_current_admin),
@@ -80,6 +116,14 @@ def reprint_order_endpoint(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    log_business_event(
+        event="order_reprint_requested",
+        request=request,
+        order_id=order.id,
+        print_job_id=job.id,
+        status=job.status,
+    )
 
     return {
         "order_id": order.id,
