@@ -6,6 +6,7 @@ export interface Product {
   category: string;
   image_url: string | null;
   is_available: boolean;
+  is_active: boolean;
 }
 
 export interface CartItem extends Product {
@@ -22,6 +23,7 @@ export interface User {
   postal_code: string | null;
   phone: string | null;
   is_admin: boolean;
+  role: 'owner' | 'manager' | 'staff' | 'customer';
 }
 
 export interface OrderItem {
@@ -31,6 +33,17 @@ export interface OrderItem {
   quantity: number;
   price: number;
   extras: string | null;
+}
+export interface OrderStatusEvent {
+  id?: number;
+  old_status?: string | null;
+  new_status?: string;
+  changed_by_user_id?: number | null;
+  source?: string;
+  note?: string | null;
+  created_at: string;
+  status?: string;
+  label?: string;
 }
 
 export interface PrintJob {
@@ -62,6 +75,7 @@ export interface Order {
   updated_at: string;
   items: OrderItem[];
   print_jobs: PrintJob[];
+  status_events?: OrderStatusEvent[];
 }
 
 export interface AuthResponse {
@@ -121,4 +135,36 @@ export interface SalesReportResponse {
   average_ticket: number;
   total_items_sold: number;
   top_products: TopProductSold[];
+}
+
+export interface RestaurantSettings {
+  restaurant_name: string;
+  public_phone: string;
+  whatsapp_number: string;
+  delivery_fee: number;
+  minimum_order_amount: number;
+  estimated_delivery_minutes: number;
+  is_accepting_orders: boolean;
+  banner_text: string | null;
+  temporary_closed: boolean;
+  temporary_closed_message: string | null;
+}
+
+export interface RestaurantSettingsAdmin extends RestaurantSettings {
+  address: string;
+  updated_at: string;
+}
+
+export interface OpeningHour {
+  day_of_week: number;
+  opens_at: string;
+  closes_at: string;
+  is_closed: boolean;
+}
+
+export interface RestaurantStatus {
+  is_open: boolean;
+  message: string;
+  estimated_delivery_minutes: number;
+  next_opening_time: string | null;
 }

@@ -19,37 +19,28 @@ def _order_payload(product_id: int) -> dict:
 
 
 def test_checkout_returns_url(client, monkeypatch):
-    def fake_create_checkout(items, *, order_id=None):
-        assert len(items) == 1
-        assert items[0].name == "Pizza test"
+    def fake_create_checkout_for_order(db, *, order_id):
         assert order_id == 7
         return "https://example.com/checkout"
 
-    monkeypatch.setattr("app.routers.payments.create_checkout", fake_create_checkout)
+    monkeypatch.setattr(
+        "app.routers.payments.create_checkout_for_order",
+        fake_create_checkout_for_order,
+    )
 
     response = client.post(
         "/create-checkout-session",
-        json={
-            "items": [
-                {
-                    "name": "Pizza test",
-                    "price": 12.5,
-                    "quantity": 1,
-                }
-            ],
-            "order_id": 7,
-        },
+        json={"order_id": 7},
     )
 
     assert response.status_code == 200
     assert response.json() == {"url": "https://example.com/checkout"}
 
 
-def test_checkout_rejects_empty_items(client):
-    response = client.post("/create-checkout-session", json={"items": []})
-
-    assert response.status_code == 400
-    assert response.json() == {"detail": "No items provided"}
+def test_checkout_fails_if_order_not_found(client):
+    response = client.post("/create-checkout-session", json={"order_id": 999999})
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Order not found"}
 
 
 def test_stripe_webhook_marks_paid_order(client, monkeypatch):
@@ -172,12 +163,39 @@ def test_non_completed_webhook_does_not_mark_order_paid(client, db_session: Sess
     assert order.status == "created"
 
 
-def test_create_checkout_uses_consistent_success_and_cancel_urls(monkeypatch):
-    from app.schemas.payment import CheckoutItem
+def test_create_checkout_uses_db_prices_and_delivery_fee(
+    monkeypatch, db_session: Session
+):
     from app.services import stripe_service
 
     monkeypatch.setattr(stripe_service, "STRIPE_KEY", "sk_test_123")
     monkeypatch.setattr(stripe_service, "FRONTEND_BASE_URL", "http://127.0.0.1:5173")
+
+    order = models.Order(
+        status="created",
+        total_price=22.5,
+        customer_name="Client",
+        customer_email="client@example.com",
+        customer_phone="0899730419",
+        delivery_address="Addr",
+        delivery_city="City",
+        delivery_postal_code="X1",
+        payment_method="card",
+        delivery_fee=2.5,
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        models.OrderItem(
+            order_id=order.id,
+            product_id=1,
+            product_name="Pizza",
+            quantity=2,
+            price=10.0,
+            extras="",
+        )
+    )
+    db_session.commit()
 
     captured = {}
 
@@ -190,14 +208,119 @@ def test_create_checkout_uses_consistent_success_and_cancel_urls(monkeypatch):
 
     monkeypatch.setattr("stripe.checkout.Session.create", fake_create)
 
-    url = stripe_service.create_checkout(
-        [CheckoutItem(name="Pizza", price=10.0, quantity=1)],
-        order_id=99,
-    )
+    url = stripe_service.create_checkout_for_order(db_session, order_id=order.id)
 
     assert url == "https://stripe.test/session"
+    assert len(captured["payload"]["line_items"]) == 2
+    assert captured["payload"]["line_items"][0]["price_data"]["unit_amount"] == 1000
+    assert captured["payload"]["line_items"][0]["quantity"] == 2
+    assert (
+        captured["payload"]["line_items"][1]["price_data"]["product_data"]["name"]
+        == "Delivery fee"
+    )
+    assert captured["payload"]["line_items"][1]["price_data"]["unit_amount"] == 250
     assert (
         captured["payload"]["success_url"]
-        == "http://127.0.0.1:5173/order-confirmation/99?method=card"
+        == f"http://127.0.0.1:5173/order-confirmation/{order.id}?method=card"
     )
     assert captured["payload"]["cancel_url"] == "http://127.0.0.1:5173/checkout"
+    assert captured["payload"]["metadata"]["order_id"] == str(order.id)
+
+
+def test_checkout_ignores_frontend_prices_payload(client, monkeypatch):
+    captured = {}
+
+    def fake_create_checkout_for_order(db, *, order_id):
+        captured["order_id"] = order_id
+        return "https://example.com/checkout"
+
+    monkeypatch.setattr(
+        "app.routers.payments.create_checkout_for_order",
+        fake_create_checkout_for_order,
+    )
+    response = client.post(
+        "/create-checkout-session",
+        json={
+            "order_id": 15,
+            "items": [{"name": "Injected", "price": 0.01, "quantity": 99}],
+        },
+    )
+    assert response.status_code == 200
+    assert captured["order_id"] == 15
+
+
+def test_checkout_fails_if_order_total_is_zero(db_session: Session):
+    from app.services import stripe_service
+
+    stripe_service.STRIPE_KEY = "sk_test_123"
+
+    order = models.Order(
+        status="created",
+        total_price=0,
+        customer_name="Client",
+        customer_email="client@example.com",
+        customer_phone="0899730419",
+        delivery_address="Addr",
+        delivery_city="City",
+        delivery_postal_code="X1",
+        payment_method="card",
+        delivery_fee=0,
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        models.OrderItem(
+            order_id=order.id,
+            product_id=1,
+            product_name="Pizza",
+            quantity=1,
+            price=0,
+            extras="",
+        )
+    )
+    db_session.commit()
+
+    try:
+        stripe_service.create_checkout_for_order(db_session, order_id=order.id)
+    except ValueError as exc:
+        assert "total" in str(exc).lower()
+    else:
+        raise AssertionError("Expected ValueError for zero total")
+
+
+def test_checkout_fails_if_order_is_cancelled(db_session: Session):
+    from app.services import stripe_service
+
+    stripe_service.STRIPE_KEY = "sk_test_123"
+    order = models.Order(
+        status="cancelled",
+        total_price=12.5,
+        customer_name="Client",
+        customer_email="client@example.com",
+        customer_phone="0899730419",
+        delivery_address="Addr",
+        delivery_city="City",
+        delivery_postal_code="X1",
+        payment_method="card",
+        delivery_fee=2.5,
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        models.OrderItem(
+            order_id=order.id,
+            product_id=1,
+            product_name="Pizza",
+            quantity=1,
+            price=10.0,
+            extras="",
+        )
+    )
+    db_session.commit()
+
+    try:
+        stripe_service.create_checkout_for_order(db_session, order_id=order.id)
+    except ValueError as exc:
+        assert "cancelled" in str(exc).lower()
+    else:
+        raise AssertionError("Expected ValueError for cancelled order")

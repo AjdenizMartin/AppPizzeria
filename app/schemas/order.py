@@ -35,7 +35,6 @@ class OrderCreate(BaseModel):
     delivery_postal_code: str = Field(min_length=2, max_length=20)
     delivery_notes: str = Field(default="", max_length=1000)
     payment_method: Literal["card", "cash"] = "card"
-    delivery_fee: Decimal = Field(default=Decimal("2.50"), ge=0)
 
 
 class OrderCreateResponse(BaseModel):
@@ -83,6 +82,24 @@ class PrintJobRead(BaseModel):
     printed_at: datetime | None = None
 
 
+class OrderStatusEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    old_status: str | None = None
+    new_status: str
+    changed_by_user_id: int | None = None
+    source: str
+    note: str | None = None
+    created_at: datetime
+
+
+class OrderStatusTimelineEventRead(BaseModel):
+    status: str
+    label: str
+    created_at: datetime
+
+
 class OrderAdminRead(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
@@ -105,6 +122,7 @@ class OrderAdminRead(BaseModel):
     updated_at: datetime
     items: list[OrderItemRead]
     print_jobs: list[PrintJobRead]
+    status_events: list[OrderStatusEventRead] = []
 
 
 class OrderTrackingRead(BaseModel):
@@ -129,6 +147,7 @@ class OrderTrackingRead(BaseModel):
     updated_at: datetime
     items: list[OrderItemRead]
     print_jobs: list[PrintJobRead]
+    status_events: list[OrderStatusTimelineEventRead] = []
 
 
 class PrintRequeueResponse(BaseModel):

@@ -28,7 +28,7 @@ export function CategoryFilter({ categories, selected, onSelect }: CategoryFilte
         className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
           selected === null
             ? 'bg-amber-500 text-white'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            : 'bg-[#efe4d4] dark:bg-[#1e293b] text-[#4f3f2f] dark:text-slate-200 hover:bg-[#e5d6c0] dark:hover:bg-[#334155]'
         }`}
       >
         All
@@ -40,7 +40,7 @@ export function CategoryFilter({ categories, selected, onSelect }: CategoryFilte
           className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors flex items-center gap-1 ${
             selected === category
               ? 'bg-amber-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              : 'bg-[#efe4d4] dark:bg-[#1e293b] text-[#4f3f2f] dark:text-slate-200 hover:bg-[#e5d6c0] dark:hover:bg-[#334155]'
           }`}
         >
           <span>{CATEGORY_ICONS[category] || '🍽️'}</span>

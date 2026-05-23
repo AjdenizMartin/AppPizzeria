@@ -5,8 +5,11 @@ from app.database import models
 from app.services.file_service import delete_product_image, save_product_image
 
 
-def list_products(db: Session) -> list[models.Product]:
-    return list(db.scalars(select(models.Product).order_by(models.Product.id)).all())
+def list_products(db: Session, include_inactive: bool = False) -> list[models.Product]:
+    stmt = select(models.Product)
+    if not include_inactive:
+        stmt = stmt.where(models.Product.is_active.is_(True))
+    return list(db.scalars(stmt.order_by(models.Product.id)).all())
 
 
 async def create_product(
@@ -27,6 +30,7 @@ async def create_product(
         description=description,
         image_url=image_url,
         is_available=is_available,
+        is_active=True,
     )
 
     db.add(product)
@@ -44,6 +48,7 @@ async def update_product(
     category: str,
     description: str = "",
     is_available: bool = True,
+    is_active: bool = True,
     file=None,
 ) -> models.Product | None:
     product = db.get(models.Product, product_id)
@@ -56,6 +61,7 @@ async def update_product(
     product.category = category
     product.description = description
     product.is_available = is_available
+    product.is_active = is_active
 
     if file is not None:
         new_image_url = save_product_image(file)
@@ -74,8 +80,31 @@ def delete_product(db: Session, product_id: int) -> bool:
     if product is None:
         return False
 
+    has_order_history = (
+        db.query(models.OrderItem)
+        .filter(models.OrderItem.product_id == product.id)
+        .first()
+        is not None
+    )
+    if has_order_history:
+        product.is_active = False
+        product.is_available = False
+        db.commit()
+        return True
+
     delete_product_image(product.image_url)
     db.delete(product)
     db.commit()
-
     return True
+
+
+def set_product_archived(db: Session, product_id: int, archived: bool) -> models.Product | None:
+    product = db.get(models.Product, product_id)
+    if product is None:
+        return None
+    product.is_active = not archived
+    if archived:
+        product.is_available = False
+    db.commit()
+    db.refresh(product)
+    return product

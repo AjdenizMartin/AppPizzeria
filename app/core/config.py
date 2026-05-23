@@ -35,6 +35,15 @@ PRINT_JOB_MAX_ATTEMPTS = int(os.getenv("PRINT_JOB_MAX_ATTEMPTS", "3"))
 PRINT_FAILURE_ALERT_THRESHOLD = int(os.getenv("PRINT_FAILURE_ALERT_THRESHOLD", "3"))
 ERROR_RATE_ALERT_THRESHOLD = float(os.getenv("ERROR_RATE_ALERT_THRESHOLD", "5.0"))
 CRITICAL_EVENTS_HISTORY_LIMIT = int(os.getenv("CRITICAL_EVENTS_HISTORY_LIMIT", "100"))
+MAX_PRODUCT_IMAGE_MB = int(os.getenv("MAX_PRODUCT_IMAGE_MB", "3"))
+ALLOWED_PRODUCT_IMAGE_TYPES = {
+    value.strip().lower()
+    for value in os.getenv(
+        "ALLOWED_PRODUCT_IMAGE_TYPES",
+        "image/jpeg,image/png,image/webp",
+    ).split(",")
+    if value.strip()
+}
 SMTP_HOST = (os.getenv("SMTP_HOST") or "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = (os.getenv("SMTP_USER") or "").strip()

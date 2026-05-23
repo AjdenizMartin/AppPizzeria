@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SyntheticEvent } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
 import { AuthModal } from './components/AuthModal';
@@ -18,7 +18,7 @@ function AdminAccessRequired({ onAuthClick }: { onAuthClick: () => void }) {
     <div className="max-w-xl mx-auto text-center py-12">
       <p className="text-5xl mb-4">🔐</p>
       <h1 className="text-2xl font-bold mb-2">Admin access required</h1>
-      <p className="text-gray-600 mb-6">
+      <p className="text-gray-600 dark:text-slate-300 mb-6">
         Sign in with an administrator account to access the control panel.
       </p>
       <button
@@ -37,6 +37,8 @@ function AppContent() {
   const [adminAuthOpen, setAdminAuthOpen] = useState(false);
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   const handleImageError = (e: SyntheticEvent<HTMLImageElement>) => {
     e.currentTarget.src = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
@@ -45,11 +47,11 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-[#f7f3ee] via-[#f5efe7] to-[#f7f3ee] dark:bg-none dark:!bg-slate-950 text-slate-900 dark:text-slate-100">
       <Navbar
         onCartClick={() => setCartOpen(true)}
         onAuthClick={() => setAuthOpen(true)}
-        onAdminClick={() => navigate('/admin')}
+        showCart={!isAdminRoute}
       />
       <main className="max-w-7xl mx-auto px-4 py-8">
         <Routes>
@@ -70,11 +72,13 @@ function AppContent() {
         </Routes>
       </main>
 
-      <CartDrawer
-        isOpen={cartOpen}
-        onClose={() => setCartOpen(false)}
-        onCheckout={() => navigate('/checkout')}
-      />
+      {!isAdminRoute && (
+        <CartDrawer
+          isOpen={cartOpen}
+          onClose={() => setCartOpen(false)}
+          onCheckout={() => navigate('/checkout')}
+        />
+      )}
 
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
       <AdminAuthModal isOpen={adminAuthOpen} onClose={() => setAdminAuthOpen(false)} />

@@ -34,7 +34,32 @@ export function useProducts() {
 
   const getCategories = useCallback(() => {
     const categories = new Set(products.map((p) => p.category));
-    return Array.from(categories).sort();
+    const preferredOrder = [
+      'Meal Deals',
+      'Burger Meals',
+      'Family Deals',
+      'Pizzas',
+      'Gourmet Pizzas',
+      'Burgers',
+      'Garlic Bread',
+      'Chips',
+      'Extras',
+      'Sauces',
+      'Soft Drinks',
+      'Desserts',
+      'Highlights',
+    ];
+
+    const indexMap = new Map(preferredOrder.map((name, index) => [name, index]));
+    return Array.from(categories).sort((a, b) => {
+      const aIndex = indexMap.get(a);
+      const bIndex = indexMap.get(b);
+
+      if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex;
+      if (aIndex !== undefined) return -1;
+      if (bIndex !== undefined) return 1;
+      return a.localeCompare(b);
+    });
   }, [products]);
 
   const search = useCallback(

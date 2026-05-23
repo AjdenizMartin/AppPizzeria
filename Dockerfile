@@ -22,6 +22,7 @@ COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./alembic.ini
 COPY print_agent/ ./print_agent/
+COPY scripts/start_production.sh ./scripts/start_production.sh
 
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
@@ -30,4 +31,4 @@ COPY --from=frontend-builder /build/frontend-react/dist ./frontend-react/dist
 USER appuser
 
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "./scripts/start_production.sh"]

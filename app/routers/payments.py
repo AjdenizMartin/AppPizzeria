@@ -6,22 +6,19 @@ from app.core.dependencies import get_db
 from app.core.observability import log_business_event
 from app.schemas.payment import CheckoutRequest, CheckoutResponse
 from app.services.order_service import mark_order_paid_after_checkout
-from app.services.stripe_service import construct_webhook_event, create_checkout
+from app.services.stripe_service import construct_webhook_event, create_checkout_for_order
 
 router = APIRouter(tags=["payments"])
 
 
 @router.post("/create-checkout-session", response_model=CheckoutResponse)
-def checkout(payload: CheckoutRequest, request: Request):
-    items = payload.items
-
-    if not items:
-        raise HTTPException(status_code=400, detail="No items provided")
-
+def checkout(payload: CheckoutRequest, request: Request, db: Session = Depends(get_db)):
     try:
-        url = create_checkout(items, order_id=payload.order_id)
+        url = create_checkout_for_order(db, order_id=payload.order_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except stripe.error.AuthenticationError as exc:
         raise HTTPException(
             status_code=502,

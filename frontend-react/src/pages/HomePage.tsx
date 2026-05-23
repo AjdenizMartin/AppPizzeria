@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import { ProductCard } from '../components/ProductCard';
 import { CategoryFilter } from '../components/CategoryFilter';
+import { restaurantService } from '../services/api';
+import type { RestaurantSettings } from '../types';
 
 interface HomePageProps {
   onImageError?: (e: SyntheticEvent<HTMLImageElement>) => void;
@@ -13,6 +15,7 @@ export function HomePage({ onImageError }: HomePageProps) {
   const availableCount = products.filter((product) => product.is_available).length;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [settings, setSettings] = useState<RestaurantSettings | null>(null);
 
   const categories = getCategories();
 
@@ -34,12 +37,16 @@ export function HomePage({ onImageError }: HomePageProps) {
     }
   }, []);
 
+  useEffect(() => {
+    restaurantService.getPublicSettings().then(setSettings).catch(() => {});
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">🍕</div>
-          <p className="text-gray-600">Loading menu...</p>
+          <p className="text-gray-600 dark:text-slate-300">Loading menu...</p>
         </div>
       </div>
     );
@@ -61,12 +68,33 @@ export function HomePage({ onImageError }: HomePageProps) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 md:p-8">
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">Fresh & Delicious</h1>
-        <p className="text-amber-100 text-lg">
-          {availableCount} items ready to order
-        </p>
-      </div>
+      <section className="rounded-2xl overflow-hidden shadow-lg border border-[#e6d9c7] dark:border-slate-700 bg-[#fdfaf5] dark:bg-slate-900">
+        <div className="relative min-h-[220px] md:min-h-[300px]">
+          <img
+            src={'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1400&q=80'}
+            alt="Pizzeria cover"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent" />
+          <div className="relative z-10 p-6 md:p-8 flex flex-col h-full justify-end">
+            <div className="inline-flex items-center gap-2 self-start rounded-full bg-[#fff7eb]/95 px-3 py-1 text-sm text-[#a35f14] border border-[#f2e4cf] mb-3">
+              <span>⭐ 4.7</span>
+              <span>•</span>
+              <span>{availableCount} items</span>
+            </div>
+            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight [text-shadow:0_2px_14px_rgba(0,0,0,0.45)]">
+              {settings?.restaurant_name || 'Pizzeria il Basilico'}
+            </h1>
+            <div className="mt-2 text-white/95 text-sm md:text-base flex flex-wrap items-center gap-x-3 gap-y-1 [text-shadow:0_1px_6px_rgba(0,0,0,0.4)]">
+              <span>Min. €{Number(settings?.minimum_order_amount ?? 10).toFixed(2)}</span>
+              <span>•</span>
+              <span>Delivery €{Number(settings?.delivery_fee ?? 6).toFixed(2)}</span>
+              <span>•</span>
+              <span>{settings?.estimated_delivery_minutes ?? 35} min</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
@@ -75,7 +103,7 @@ export function HomePage({ onImageError }: HomePageProps) {
             placeholder="Search menu..."
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+            className="w-full px-4 py-3 border border-[#d7c8b5] dark:border-slate-600 bg-[#fefcf9] dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm"
           />
         </div>
       </div>
@@ -87,7 +115,7 @@ export function HomePage({ onImageError }: HomePageProps) {
       />
 
       {filteredProducts.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-slate-400">
           <p className="text-4xl mb-4">🔍</p>
           <p>No products found</p>
         </div>

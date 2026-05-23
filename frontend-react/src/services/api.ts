@@ -6,7 +6,11 @@ import type {
   MetricsResponse,
   OpsStatusResponse,
   Order,
+  OpeningHour,
   Product,
+  RestaurantStatus,
+  RestaurantSettings,
+  RestaurantSettingsAdmin,
   SalesReportResponse,
   User,
 } from '../types';
@@ -126,6 +130,20 @@ export const productService = {
     const { data } = await api.delete<{ message: string }>(`/admin/products/${productId}`);
     return data;
   },
+
+  async getAdminAll(includeInactive = true): Promise<Product[]> {
+    const { data } = await api.get<Product[]>(
+      `/admin/products?include_inactive=${includeInactive ? 'true' : 'false'}`
+    );
+    return data;
+  },
+
+  async archive(productId: number, archived: boolean): Promise<Product> {
+    const payload = new FormData();
+    payload.append('archived', String(archived));
+    const { data } = await api.patch<Product>(`/admin/products/${productId}/archive`, payload);
+    return data;
+  },
 };
 
 export const orderService = {
@@ -139,7 +157,6 @@ export const orderService = {
     delivery_postal_code: string;
     delivery_notes?: string;
     payment_method: 'card' | 'cash';
-    delivery_fee: number;
   }): Promise<{ order_id: number; total: number; status: string }> {
     const { data } = await api.post('/orders', payload);
     return data;
@@ -155,18 +172,13 @@ export const orderService = {
     delivery_postal_code: string;
     delivery_notes?: string;
     payment_method: 'card' | 'cash';
-    delivery_fee: number;
   }): Promise<{ order_id: number; total: number; status: string; payment_method: string }> {
     const { data } = await api.post('/orders/cash-checkout', payload);
     return data;
   },
 
-  async createCheckoutSession(
-    items: { name: string; price: number; quantity: number }[],
-    orderId: number
-  ): Promise<CheckoutResponse> {
+  async createCheckoutSession(orderId: number): Promise<CheckoutResponse> {
     const { data } = await api.post<CheckoutResponse>('/create-checkout-session', {
-      items,
       order_id: orderId,
     });
     return data;
@@ -257,6 +269,45 @@ export const observabilityService = {
 export const reportsService = {
   async getDailySales(date: string): Promise<SalesReportResponse> {
     const { data } = await api.get<SalesReportResponse>(`/admin/reports/sales?date=${date}`);
+    return data;
+  },
+};
+
+export const restaurantService = {
+  async getPublicSettings(): Promise<RestaurantSettings> {
+    const { data } = await api.get<RestaurantSettings>('/restaurant/settings');
+    return data;
+  },
+  async getAdminSettings(): Promise<RestaurantSettingsAdmin> {
+    const { data } = await api.get<RestaurantSettingsAdmin>('/admin/restaurant/settings');
+    return data;
+  },
+  async updateAdminSettings(
+    payload: Omit<RestaurantSettingsAdmin, 'updated_at'>
+  ): Promise<RestaurantSettingsAdmin> {
+    const { data } = await api.patch<RestaurantSettingsAdmin>('/admin/restaurant/settings', payload);
+    return data;
+  },
+  async getStatus(): Promise<RestaurantStatus> {
+    const { data } = await api.get<RestaurantStatus>('/restaurant/status');
+    return data;
+  },
+  async getOpeningHours(): Promise<OpeningHour[]> {
+    const { data } = await api.get<OpeningHour[]>('/admin/restaurant/opening-hours');
+    return data;
+  },
+  async updateOpeningHours(payload: OpeningHour[]): Promise<OpeningHour[]> {
+    const { data } = await api.put<OpeningHour[]>('/admin/restaurant/opening-hours', payload);
+    return data;
+  },
+  async updateTemporaryClosure(payload: {
+    temporary_closed: boolean;
+    temporary_closed_message?: string;
+  }): Promise<RestaurantSettingsAdmin> {
+    const { data } = await api.patch<RestaurantSettingsAdmin>(
+      '/admin/restaurant/temporary-closure',
+      payload
+    );
     return data;
   },
 };

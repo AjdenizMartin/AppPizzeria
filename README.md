@@ -110,6 +110,8 @@ cd ..
 - Usar `DATABASE_URL` de PostgreSQL (no SQLite).
 - Usar migraciones Alembic: no depender de `AUTO_CREATE_TABLES`.
 - Configurar dominio real en `FRONTEND_BASE_URL` y `CORS_ORIGINS` restringido.
+- El arranque productivo ejecuta migraciones antes de levantar API con:
+  - `scripts/start_production.sh`
 
 Variables minimas:
 
@@ -141,10 +143,58 @@ alembic upgrade head
 
 Railway:
 
-1. Crear servicio backend y vincular PostgreSQL.
-2. Configurar variables del bloque anterior.
-3. Build command: `pip install .`
-4. Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Ejecutar migraciones antes de go-live: `alembic upgrade head`.
-6. Stripe webhook (produccion): `https://app.tudominio.com/stripe/webhook` con evento `checkout.session.completed`.
+1. Crear servicio backend y vincular PostgreSQL en Railway.
+2. Configurar variables con referencia en `.env.production.example`.
+3. Build command (si lo usas manual): `pip install .`
+4. Start command recomendado: `sh ./scripts/start_production.sh`
+5. El script ejecuta:
+   - `alembic upgrade head`
+   - `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+6. Stripe webhook (produccion):
+   - URL: `https://app.tudominio.com/stripe/webhook`
+   - Evento: `checkout.session.completed`
 7. Frontend React se sirve desde `frontend-react/dist` cuando existe build en la imagen.
+8. Healthcheck rápido:
+   - `GET /health` debe responder `{"status":"healthy"}`
+9. Smoke de checkout:
+   - crear pedido
+   - crear checkout session
+   - simular/recibir webhook
+   - verificar pedido `accepted` y print job `pending`
+
+Print agent en restaurante (local):
+
+1. Configurar `PRINT_AGENT_KEY` igual en backend y agente.
+2. En el equipo del restaurante, usar archivo env (ejemplo):
+   - `/etc/pizzeria-print-agent.env`
+   - `BACKEND_URL=https://app.tudominio.com`
+   - `PRINT_AGENT_KEY=...`
+3. Ejecutar como servicio (`systemd`) con reinicio automático.
+4. Verificar flujo:
+   - pedido `accepted` -> `print_jobs` pending
+   - agente hace `pull`/`complete`
+   - pedido pasa a `printed`
+
+Backup / restore básico:
+
+1. Activar backups automáticos de PostgreSQL en Railway.
+2. Validar restore en staging al menos una vez.
+3. Mantener snapshots antes de cambios estructurales.
+
+Runbook de incidentes:
+
+1. Stripe caído:
+   - Checkout puede fallar al crear sesión.
+   - Mantener cash checkout operativo.
+   - Revisar `STRIPE_KEY`/estado Stripe y reintentar.
+2. Impresora caída:
+   - Ver `print_jobs` en `failed` o reintentos.
+   - Usar acción admin `reprint`.
+   - Reiniciar servicio print agent y revisar red/USB.
+3. SMTP caído:
+   - Pedidos siguen operando (emails son best-effort).
+   - Revisar `SMTP_*` y logs de `email_service`.
+4. DB caída:
+   - API/health fallarán.
+   - validar conexión Railway Postgres y reinicio de servicio.
+   - restaurar desde snapshot si aplica.

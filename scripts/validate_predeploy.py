@@ -23,6 +23,10 @@ def main() -> int:
     stripe_key = (os.getenv("STRIPE_KEY") or "").strip()
     stripe_webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
     print_agent_key = (os.getenv("PRINT_AGENT_KEY") or "").strip()
+    smtp_host = (os.getenv("SMTP_HOST") or "").strip()
+    smtp_user = (os.getenv("SMTP_USER") or "").strip()
+    smtp_password = (os.getenv("SMTP_PASSWORD") or "").strip()
+    smtp_from = (os.getenv("SMTP_FROM_EMAIL") or "").strip()
 
     errors: list[str] = []
 
@@ -62,6 +66,15 @@ def main() -> int:
 
     if not print_agent_key:
         errors.append("PRINT_AGENT_KEY is required")
+
+    smtp_values = [smtp_host, smtp_user, smtp_password, smtp_from]
+    smtp_any = any(smtp_values)
+    smtp_all = all(smtp_values)
+    if smtp_any and not smtp_all:
+        errors.append(
+            "SMTP is partially configured. Set SMTP_HOST, SMTP_USER, "
+            "SMTP_PASSWORD and SMTP_FROM_EMAIL together, or leave all empty."
+        )
 
     if errors:
         for error in errors:

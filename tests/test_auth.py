@@ -12,6 +12,7 @@ def test_first_registered_user_becomes_admin(client):
     assert payload["token_type"] == "bearer"
     assert payload["user"]["email"] == "owner@example.com"
     assert payload["user"]["is_admin"] is True
+    assert payload["user"]["role"] == "owner"
     assert payload["user"]["full_name"] is None
     assert payload["user"]["address_line"] is None
     assert payload["user"]["city"] is None
@@ -49,6 +50,7 @@ def test_login_and_me_flow(client):
         "id": 1,
         "email": "owner@example.com",
         "is_admin": True,
+        "role": "owner",
         "full_name": None,
         "address_line": None,
         "city": None,

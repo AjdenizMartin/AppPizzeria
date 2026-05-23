@@ -39,6 +39,7 @@ def register_user(db: Session, payload: UserRegister) -> User:
         email=email,
         hashed_password=hash_password(payload.password),
         is_admin=is_admin,
+        role="owner" if is_admin else "customer",
         full_name=payload.full_name.strip() or None,
         address_line=payload.address_line.strip() or None,
         city=payload.city.strip() or None,
@@ -65,10 +66,14 @@ def authenticate_user(db: Session, payload: UserLogin) -> User | None:
 
 
 def build_token_response(user: User) -> TokenResponse:
+    role = _normalize_role(user)
+    if user.role != role:
+        user.role = role
     access_token = create_access_token(
         subject=str(user.id),
         email=user.email,
         is_admin=user.is_admin,
+        role=role,
     )
     return TokenResponse(
         access_token=access_token,
@@ -85,3 +90,24 @@ def update_user_profile(db: Session, user: User, payload: UserProfileUpdate) -> 
     db.commit()
     db.refresh(user)
     return user
+
+
+def list_users(db: Session) -> list[User]:
+    return list(db.scalars(select(User).order_by(User.id.asc())).all())
+
+
+def update_user_role(db: Session, user_id: int, role: str) -> User | None:
+    user = db.get(User, user_id)
+    if user is None:
+        return None
+    normalized = role.strip().lower()
+    user.role = normalized
+    user.is_admin = normalized in {"owner", "manager", "staff"}
+    db.commit()
+    db.refresh(user)
+    return user
+def _normalize_role(user: User) -> str:
+    role = (user.role or "").strip().lower()
+    if role in {"owner", "manager", "staff", "customer"}:
+        return role
+    return "owner" if user.is_admin else "customer"

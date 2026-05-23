@@ -14,12 +14,12 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col">
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-slate-900 shadow-xl border-l border-slate-200 dark:border-slate-700 z-50 flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold">Your Basket</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"
           >
             ✕
           </button>
@@ -27,7 +27,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
 
         <div className="flex-1 overflow-y-auto p-4">
           {items.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-gray-500 dark:text-slate-400">
               <p className="text-4xl mb-4">🛒</p>
               <p>Your basket is empty</p>
               <p className="text-sm mt-1">Add some delicious items!</p>
@@ -35,7 +35,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
           ) : (
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="flex gap-4 p-3 bg-gray-50 rounded-lg">
+                <div key={item.id} className="flex gap-4 p-3 bg-gray-50 dark:bg-slate-800/70 rounded-lg">
                   <div className="flex-1">
                     <h3 className="font-medium">{item.name}</h3>
                     <p className="text-amber-600 font-semibold">
@@ -44,7 +44,7 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                     <input
                       value={item.extras || ''}
                       onChange={(event) => updateExtras(item.id, event.target.value)}
-                      className="mt-2 w-full rounded border px-2 py-1 text-xs"
+                      className="mt-2 w-full rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                       placeholder="Item note (e.g. no onion, extra cheese)"
                       maxLength={500}
                     />
@@ -52,14 +52,14 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      className="w-8 h-8 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
+                      className="w-8 h-8 bg-gray-200 dark:bg-slate-700 rounded-full hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
                     >
                       -
                     </button>
                     <span className="w-8 text-center font-medium">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="w-8 h-8 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors"
+                      className="w-8 h-8 bg-gray-200 dark:bg-slate-700 rounded-full hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"
                     >
                       +
                     </button>
@@ -77,12 +77,12 @@ export function CartDrawer({ isOpen, onClose, onCheckout }: CartDrawerProps) {
         </div>
 
         {items.length > 0 && (
-          <div className="border-t p-4 space-y-3">
-            <div className="flex justify-between text-gray-600">
+          <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-3">
+            <div className="flex justify-between text-gray-600 dark:text-slate-300">
               <span>Subtotal</span>
               <span>€{getSubtotal().toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-600">
+            <div className="flex justify-between text-gray-600 dark:text-slate-300">
               <span>Delivery</span>
               <span>€{deliveryFee.toFixed(2)}</span>
             </div>

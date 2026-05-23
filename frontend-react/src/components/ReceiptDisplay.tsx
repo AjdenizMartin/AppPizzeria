@@ -9,21 +9,21 @@ export function ReceiptDisplay({ order, businessName = 'Pizzeria App' }: Receipt
   const subtotal = order.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
 
   return (
-    <section className="bg-white rounded-xl shadow-sm p-6 space-y-4 print:shadow-none print:rounded-none print:p-2">
+    <section className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4 print:!bg-white print:!text-black print:shadow-none print:rounded-none print:p-2">
       <div className="flex items-center justify-between border-b pb-3">
         <div>
           <h3 className="text-xl font-bold">{businessName}</h3>
-          <p className="text-xs text-gray-500">Order receipt</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Order receipt</p>
         </div>
         <button
           onClick={() => window.print()}
-          className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50 print:hidden"
+          className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 print:hidden"
         >
           Print receipt
         </button>
       </div>
 
-      <div className="text-sm grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div className="text-sm text-slate-800 dark:text-slate-200 grid grid-cols-1 md:grid-cols-2 gap-2">
         <p><span className="font-semibold">Order ID:</span> #{order.id}</p>
         <p><span className="font-semibold">Date:</span> {new Date(order.created_at).toLocaleString()}</p>
         <p><span className="font-semibold">Status:</span> {order.status}</p>
@@ -45,7 +45,7 @@ export function ReceiptDisplay({ order, businessName = 'Pizzeria App' }: Receipt
           <div key={item.id} className="flex justify-between gap-3">
             <span>
               {item.quantity}x {item.product_name}
-              {item.extras ? <span className="block text-xs text-gray-500">Extras: {item.extras}</span> : null}
+              {item.extras ? <span className="block text-xs text-gray-500 dark:text-slate-400">Extras: {item.extras}</span> : null}
             </span>
             <span>EUR {(Number(item.price) * item.quantity).toFixed(2)}</span>
           </div>

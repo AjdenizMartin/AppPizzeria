@@ -4,8 +4,8 @@ import { AxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { MENU_CATEGORIES, ORDER_STATUS_TRANSITIONS } from '../constants/catalog';
 import { useAuth } from '../hooks/useAuth';
-import { buildApiUrl, observabilityService, orderService, productService, reportsService } from '../services/api';
-import type { AuditEventsResponse, MetricsResponse, OpsStatusResponse, Order, Product, SalesReportResponse } from '../types';
+import { buildApiUrl, observabilityService, orderService, productService, reportsService, restaurantService } from '../services/api';
+import type { AuditEventsResponse, MetricsResponse, OpeningHour, OpsStatusResponse, Order, Product, RestaurantSettingsAdmin, SalesReportResponse } from '../types';
 
 const STATUS_COLORS: Record<string, string> = {
   created: 'bg-gray-100 text-gray-800',
@@ -29,6 +29,7 @@ const ALERT_THRESHOLDS = {
   acceptedOrPrintingMinutes: 25,
   readyUndeliveredMinutes: 20,
 };
+const WEEKDAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 type ProductFormState = {
   name: string;
@@ -125,9 +126,17 @@ function formatStepLabel(step: string) {
   return map[step] || step;
 }
 
+function normalizeEventStatus(event: { new_status?: string; status?: string }) {
+  return (event.new_status || event.status || '').toLowerCase();
+}
+
 export function AdminPage() {
   const navigate = useNavigate();
-  const { isAdmin, loading: authLoading } = useAuth();
+  const { isAdmin, loading: authLoading, role } = useAuth();
+  const canManageOrders = role === 'owner' || role === 'manager' || role === 'staff';
+  const canManageProducts = role === 'owner' || role === 'manager';
+  const canSeeReports = role === 'owner' || role === 'manager';
+  const canManageSettings = role === 'owner';
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -154,6 +163,10 @@ export function AdminPage() {
   const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
   const [salesReport, setSalesReport] = useState<SalesReportResponse | null>(null);
   const [salesLoading, setSalesLoading] = useState(false);
+  const [restaurantSettings, setRestaurantSettings] = useState<RestaurantSettingsAdmin | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
 
   const fetchOrders = useCallback(
     async (nextOffset = 0, append = false) => {
@@ -177,16 +190,20 @@ export function AdminPage() {
     try {
       const [metricsData, productsData] = await Promise.all([
         observabilityService.getMetrics(),
-        productService.getAll(),
+        productService.getAdminAll(true),
       ]);
-      const [opsData, eventsData] = await Promise.all([
+      const [opsData, eventsData, settingsData, hoursData] = await Promise.all([
         observabilityService.getOpsStatus(),
         observabilityService.getAuditEvents(undefined, 10),
+        restaurantService.getAdminSettings(),
+        restaurantService.getOpeningHours(),
       ]);
       await fetchOrders(0, false);
       setMetrics(metricsData);
       setOpsStatus(opsData);
       setAuditEvents(eventsData);
+      setRestaurantSettings(settingsData);
+      setOpeningHours(hoursData);
       setProducts(productsData);
       setError('');
     } catch (err) {
@@ -283,7 +300,7 @@ export function AdminPage() {
         editingProductId ? `Product "${saved.name}" updated.` : `Product "${saved.name}" created.`
       );
       resetProductForm();
-      const freshProducts = await productService.getAll();
+      const freshProducts = await productService.getAdminAll(true);
       setProducts(freshProducts);
     } catch (err) {
       setProductMessage(formatApiError(err, 'Could not save product'));
@@ -309,19 +326,68 @@ export function AdminPage() {
     try {
       await productService.remove(productId);
       if (editingProductId === productId) resetProductForm();
-      setProductMessage('Product deleted.');
-      setProducts(await productService.getAll());
+      setProductMessage('Product removed/archived.');
+      setProducts(await productService.getAdminAll(true));
     } catch (err) {
       setProductMessage(formatApiError(err, 'Could not delete product'));
     }
   };
+
+  const handleArchiveProduct = async (productId: number, archived: boolean) => {
+    try {
+      await productService.archive(productId, archived);
+      setProductMessage(archived ? 'Product archived.' : 'Product restored.');
+      setProducts(await productService.getAdminAll(true));
+    } catch (err) {
+      setProductMessage(formatApiError(err, 'Could not update archive status'));
+    }
+  };
+
+  const handleRestaurantSettingsSave = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!restaurantSettings) return;
+    setSettingsSaving(true);
+    setSettingsMessage('');
+    try {
+      const updated = await restaurantService.updateAdminSettings({
+        restaurant_name: restaurantSettings.restaurant_name,
+        public_phone: restaurantSettings.public_phone,
+        whatsapp_number: restaurantSettings.whatsapp_number,
+        address: restaurantSettings.address,
+        delivery_fee: Number(restaurantSettings.delivery_fee),
+        minimum_order_amount: Number(restaurantSettings.minimum_order_amount),
+        estimated_delivery_minutes: Number(restaurantSettings.estimated_delivery_minutes),
+        is_accepting_orders: restaurantSettings.is_accepting_orders,
+        temporary_closed: restaurantSettings.temporary_closed,
+        temporary_closed_message: restaurantSettings.temporary_closed_message || '',
+        banner_text: restaurantSettings.banner_text || '',
+      });
+      setRestaurantSettings(updated);
+      setSettingsMessage('Restaurant settings updated.');
+    } catch (err) {
+      setSettingsMessage(formatApiError(err, 'Could not update restaurant settings'));
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleOpeningHoursSave = async () => {
+    try {
+      const updated = await restaurantService.updateOpeningHours(openingHours);
+      setOpeningHours(updated);
+      setSettingsMessage('Opening hours updated.');
+    } catch (err) {
+      setSettingsMessage(formatApiError(err, 'Could not update opening hours'));
+    }
+  };
+
 
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">📋</div>
-          <p className="text-gray-600">Loading control room...</p>
+          <p className="text-gray-600 dark:text-slate-300">Loading control room...</p>
         </div>
       </div>
     );
@@ -350,7 +416,104 @@ export function AdminPage() {
         </div>
       </section>
 
-      <section className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
+      {canManageSettings && <section className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+        <h2 className="text-2xl font-bold">Restaurant settings</h2>
+        {restaurantSettings ? (
+          <form onSubmit={handleRestaurantSettingsSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Restaurant name</label>
+              <input value={restaurantSettings.restaurant_name} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, restaurant_name: event.target.value } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Public phone</label>
+              <input value={restaurantSettings.public_phone} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, public_phone: event.target.value } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">WhatsApp</label>
+              <input value={restaurantSettings.whatsapp_number} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, whatsapp_number: event.target.value } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Address</label>
+              <input value={restaurantSettings.address} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, address: event.target.value } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Delivery fee (EUR)</label>
+              <input type="number" step="0.01" min="0" value={restaurantSettings.delivery_fee} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, delivery_fee: Number(event.target.value) } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Minimum order (EUR)</label>
+              <input type="number" step="0.01" min="0" value={restaurantSettings.minimum_order_amount} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, minimum_order_amount: Number(event.target.value) } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Estimated delivery (minutes)</label>
+              <input type="number" min="1" max="240" value={restaurantSettings.estimated_delivery_minutes} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, estimated_delivery_minutes: Number(event.target.value) } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-200">
+                <input type="checkbox" checked={restaurantSettings.is_accepting_orders} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, is_accepting_orders: event.target.checked } : s))} />
+                Accepting orders
+              </label>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Banner text</label>
+              <input value={restaurantSettings.banner_text || ''} onChange={(event) => setRestaurantSettings((s) => (s ? { ...s, banner_text: event.target.value } : s))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
+            </div>
+            <div className="md:col-span-2 rounded-xl border p-4 space-y-3">
+              <h3 className="font-semibold">Temporary closure</h3>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={restaurantSettings.temporary_closed}
+                  onChange={(event) =>
+                    setRestaurantSettings((s) =>
+                      s ? { ...s, temporary_closed: event.target.checked } : s
+                    )
+                  }
+                />
+                Temporarily closed
+              </label>
+              <input
+                value={restaurantSettings.temporary_closed_message || ''}
+                onChange={(event) =>
+                  setRestaurantSettings((s) =>
+                    s ? { ...s, temporary_closed_message: event.target.value } : s
+                  )
+                }
+                className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400"
+                placeholder="Temporary closure message"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <button type="submit" disabled={settingsSaving} className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white px-5 py-3 font-semibold disabled:opacity-60">
+                {settingsSaving ? 'Saving...' : 'Save restaurant settings'}
+              </button>
+            </div>
+            {settingsMessage && (
+              <div className="md:col-span-2 rounded-xl bg-amber-50 text-amber-800 p-3 text-sm">
+                {settingsMessage}
+              </div>
+            )}
+          </form>
+        ) : (
+          <p className="text-sm text-gray-500 dark:text-slate-400">Loading restaurant settings...</p>
+        )}
+        <div className="rounded-xl border p-4 space-y-3">
+          <h3 className="font-semibold">Weekly opening hours</h3>
+          <div className="space-y-2">
+            {openingHours.map((hour, idx) => (
+              <div key={`${hour.day_of_week}-${idx}`} className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <input value={WEEKDAY_LABELS[hour.day_of_week] || `Day ${hour.day_of_week}`} disabled className="rounded border px-2 py-2 text-sm bg-gray-50 dark:bg-slate-800" />
+                <input value={hour.opens_at} onChange={(event) => setOpeningHours((curr) => curr.map((x, i) => i === idx ? { ...x, opens_at: event.target.value } : x))} className="rounded border px-2 py-2 text-sm" />
+                <input value={hour.closes_at} onChange={(event) => setOpeningHours((curr) => curr.map((x, i) => i === idx ? { ...x, closes_at: event.target.value } : x))} className="rounded border px-2 py-2 text-sm" />
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={hour.is_closed} onChange={(event) => setOpeningHours((curr) => curr.map((x, i) => i === idx ? { ...x, is_closed: event.target.checked } : x))} />Closed</label>
+              </div>
+            ))}
+          </div>
+          <button onClick={handleOpeningHoursSave} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800">Save opening hours</button>
+        </div>
+      </section>}
+
+      {canSeeReports && <section className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-2xl font-bold">Daily sales report</h2>
           <div className="flex items-center gap-2">
@@ -358,35 +521,35 @@ export function AdminPage() {
               type="date"
               value={reportDate}
               onChange={(event) => setReportDate(event.target.value)}
-              className="rounded-xl border px-3 py-2"
+              className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2"
             />
             <button
               onClick={() => fetchSalesReport(reportDate)}
-              className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+              className="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
             >
               Refresh report
             </button>
           </div>
         </div>
-        {salesLoading && <p className="text-sm text-gray-500">Loading report...</p>}
+        {salesLoading && <p className="text-sm text-gray-500 dark:text-slate-400">Loading report...</p>}
         {salesReport && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Revenue</p><p className="text-lg font-bold">EUR {salesReport.revenue_total.toFixed(2)}</p></div>
-              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Orders</p><p className="text-lg font-bold">{salesReport.total_orders}</p></div>
-              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Avg ticket</p><p className="text-lg font-bold">EUR {salesReport.average_ticket.toFixed(2)}</p></div>
-              <div className="rounded-xl bg-gray-50 p-3"><p className="text-xs text-gray-500">Items sold</p><p className="text-lg font-bold">{salesReport.total_items_sold}</p></div>
+              <div className="rounded-xl bg-gray-50 dark:bg-slate-800 p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Revenue</p><p className="text-lg font-bold">EUR {salesReport.revenue_total.toFixed(2)}</p></div>
+              <div className="rounded-xl bg-gray-50 dark:bg-slate-800 p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Orders</p><p className="text-lg font-bold">{salesReport.total_orders}</p></div>
+              <div className="rounded-xl bg-gray-50 dark:bg-slate-800 p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Avg ticket</p><p className="text-lg font-bold">EUR {salesReport.average_ticket.toFixed(2)}</p></div>
+              <div className="rounded-xl bg-gray-50 dark:bg-slate-800 p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Items sold</p><p className="text-lg font-bold">{salesReport.total_items_sold}</p></div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">Cash</p><p className="font-semibold">EUR {salesReport.cash_total.toFixed(2)}</p></div>
-              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">Card</p><p className="font-semibold">EUR {salesReport.card_total.toFixed(2)}</p></div>
-              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">Paid/completed</p><p className="font-semibold">{salesReport.paid_or_completed_orders}</p></div>
-              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500">Cancelled</p><p className="font-semibold">{salesReport.cancelled_orders}</p></div>
+              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Cash</p><p className="font-semibold">EUR {salesReport.cash_total.toFixed(2)}</p></div>
+              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Card</p><p className="font-semibold">EUR {salesReport.card_total.toFixed(2)}</p></div>
+              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Paid/completed</p><p className="font-semibold">{salesReport.paid_or_completed_orders}</p></div>
+              <div className="rounded-xl border p-3"><p className="text-xs text-gray-500 dark:text-slate-400">Cancelled</p><p className="font-semibold">{salesReport.cancelled_orders}</p></div>
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-2">Top products</h3>
               {salesReport.top_products.length === 0 ? (
-                <p className="text-sm text-gray-500">No sales for this date.</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No sales for this date.</p>
               ) : (
                 <div className="space-y-2">
                   {salesReport.top_products.map((item) => (
@@ -400,9 +563,9 @@ export function AdminPage() {
             </div>
           </>
         )}
-      </section>
+      </section>}
 
-      <section className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
+      <section className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
         <h2 className="text-2xl font-bold">Order filters</h2>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border px-4 py-2">
@@ -429,10 +592,10 @@ export function AdminPage() {
 
       {error && <div className="rounded-2xl bg-red-50 text-red-700 p-4">{error}</div>}
 
-      <section className="space-y-4">
+      {canManageOrders && <section className="space-y-4">
         <h2 className="text-2xl font-bold">Orders</h2>
         {orders.length === 0 ? (
-          <div className="bg-white rounded-3xl shadow-sm p-12 text-center text-gray-500">No orders found.</div>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-12 text-center text-gray-500 dark:text-slate-400">No orders found.</div>
         ) : (
           <div className="space-y-4">
             {orders.map((order) => {
@@ -444,30 +607,30 @@ export function AdminPage() {
               const latestPrint = order.print_jobs[0];
               const alerts = getOrderAlerts(order);
               return (
-                <article key={order.id} className="bg-white rounded-3xl shadow-sm p-6 space-y-4">
+                <article key={order.id} className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <h3 className="text-xl font-bold">Order #{order.id}</h3>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-slate-400">
                         {order.customer_name} · {order.customer_phone} · {order.customer_email || 'no email'}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 dark:text-slate-300">
                         {order.delivery_address}, {order.delivery_city} {order.delivery_postal_code}
                       </p>
                       {order.delivery_notes && (
-                        <p className="text-sm text-gray-600">Notes: {order.delivery_notes}</p>
+                        <p className="text-sm text-gray-600 dark:text-slate-300">Notes: {order.delivery_notes}</p>
                       )}
                     </div>
                     <div className="text-right">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[order.status] || 'bg-gray-100'}`}>
                         {order.status}
                       </span>
-                      <p className="text-sm text-gray-500 mt-2">Payment: {order.payment_method}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">Payment: {order.payment_method}</p>
                       <p className="text-lg font-bold">EUR {Number(order.total_price).toFixed(2)}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
                         Created: {new Date(order.created_at).toLocaleString()}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
                         Updated: {new Date(order.updated_at).toLocaleString()}
                       </p>
                     </div>
@@ -479,21 +642,39 @@ export function AdminPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
-                    {['created', 'paid', 'accepted', 'printing', 'printed', 'ready', 'delivered'].map((step) => {
-                      const state = getTimelineState(order, step);
-                      const classes = state === 'done'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : state === 'pending'
-                          ? 'bg-gray-100 text-gray-500'
-                          : 'bg-red-100 text-red-700';
-                      return (
-                        <div key={`${order.id}-${step}`} className={`rounded-lg px-2 py-1 text-center ${classes}`}>
-                          {formatStepLabel(step)}
+                  {order.status_events && order.status_events.length > 0 ? (
+                    <div className="space-y-2">
+                      {order.status_events.map((event, idx) => (
+                        <div key={`${order.id}-evt-${idx}`} className="rounded-lg bg-gray-50 dark:bg-slate-800 px-3 py-2 text-xs">
+                          <span className="font-semibold">{formatStepLabel(normalizeEventStatus(event))}</span>
+                          <span className="ml-2 text-gray-600 dark:text-slate-300">
+                            {new Date(event.created_at).toLocaleString()}
+                          </span>
+                          {event.source && (
+                            <span className="ml-2 rounded bg-white px-2 py-0.5 text-gray-600 dark:text-slate-300 border">
+                              {event.source}
+                            </span>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-7 gap-2 text-xs">
+                      {['created', 'paid', 'accepted', 'printing', 'printed', 'ready', 'delivered'].map((step) => {
+                        const state = getTimelineState(order, step);
+                        const classes = state === 'done'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : state === 'pending'
+                            ? 'bg-gray-100 text-gray-500 dark:text-slate-400'
+                            : 'bg-red-100 text-red-700';
+                        return (
+                          <div key={`${order.id}-${step}`} className={`rounded-lg px-2 py-1 text-center ${classes}`}>
+                            {formatStepLabel(step)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   {['failed', 'cancelled'].includes(order.status) && (
                     <div className="text-sm text-red-700">
                       Order ended as {order.status}.
@@ -520,11 +701,11 @@ export function AdminPage() {
                           <option key={`${order.id}-${status}-${index}`} value={status}>{status}</option>
                         ))}
                       </select>
-                      <button onClick={() => handleReprint(order.id)} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50">
+                      <button onClick={() => handleReprint(order.id)} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800">
                         Reprint ticket
                       </button>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-slate-300">
                       {latestPrint
                         ? `Print #${latestPrint.id} · ${latestPrint.status}${
                             latestPrint.last_error ? ` · error: ${latestPrint.last_error}` : ''
@@ -538,24 +719,24 @@ export function AdminPage() {
             {hasMore && (
               <button
                 onClick={() => fetchOrders(offset + orderLimit, true)}
-                className="w-full rounded-xl border px-4 py-3 font-semibold hover:bg-gray-50"
+                className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
               >
                 Load more
               </button>
             )}
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="grid grid-cols-1 xl:grid-cols-[1.05fr_1.35fr] gap-6">
-        <article className="bg-white rounded-3xl shadow-sm p-6">
+      {canManageProducts && <section className="grid grid-cols-1 xl:grid-cols-[1.05fr_1.35fr] gap-6">
+        <article className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between gap-4 mb-5">
             <div>
               <p className="uppercase tracking-[0.25em] text-xs text-orange-500 mb-2">Catalog</p>
               <h2 className="text-2xl font-bold">{editingProductId ? 'Edit product' : 'Create product'}</h2>
             </div>
             {editingProductId && (
-              <button onClick={resetProductForm} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50">
+              <button onClick={resetProductForm} className="rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800">
                 Cancel edit
               </button>
             )}
@@ -563,26 +744,26 @@ export function AdminPage() {
           {productMessage && <div className="mb-4 rounded-2xl bg-amber-50 text-amber-800 p-4 text-sm">{productMessage}</div>}
           <form onSubmit={handleProductSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input required value={productForm.name} onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-400" placeholder="Smoky Pepperoni Feast" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Name</label>
+              <input required value={productForm.name} onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" placeholder="Smoky Pepperoni Feast" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-              <input required type="number" step="0.01" min="0" value={productForm.price} onChange={(event) => setProductForm((current) => ({ ...current, price: event.target.value }))} className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-400" placeholder="12.50" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Price</label>
+              <input required type="number" step="0.01" min="0" value={productForm.price} onChange={(event) => setProductForm((current) => ({ ...current, price: event.target.value }))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" placeholder="12.50" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select required value={productForm.category} onChange={(event) => setProductForm((current) => ({ ...current, category: event.target.value }))} className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-400">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Category</label>
+              <select required value={productForm.category} onChange={(event) => setProductForm((current) => ({ ...current, category: event.target.value }))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400">
                 <option value="">Select category</option>
                 {MENU_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea rows={4} value={productForm.description} onChange={(event) => setProductForm((current) => ({ ...current, description: event.target.value }))} className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-400" placeholder="Short, persuasive product description." />
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Description</label>
+              <textarea rows={4} value={productForm.description} onChange={(event) => setProductForm((current) => ({ ...current, description: event.target.value }))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" placeholder="Short, persuasive product description." />
             </div>
             <div className="md:col-span-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-200">
                 <input
                   type="checkbox"
                   checked={productForm.is_available}
@@ -597,8 +778,8 @@ export function AdminPage() {
               </label>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Image</label>
-              <input type="file" accept="image/*" onChange={(event) => setProductForm((current) => ({ ...current, file: event.target.files?.[0] || null }))} className="w-full rounded-xl border px-4 py-3 outline-none focus:border-orange-400" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">Image</label>
+              <input type="file" accept="image/*" onChange={(event) => setProductForm((current) => ({ ...current, file: event.target.files?.[0] || null }))} className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 outline-none focus:border-orange-400" />
             </div>
             <div className="md:col-span-2">
               <button type="submit" disabled={savingProduct} className="w-full rounded-xl bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 font-semibold disabled:opacity-60">
@@ -608,7 +789,7 @@ export function AdminPage() {
           </form>
         </article>
 
-        <article className="bg-white rounded-3xl shadow-sm p-6">
+        <article className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
             <div>
               <p className="uppercase tracking-[0.25em] text-xs text-orange-500 mb-2">Live menu</p>
@@ -617,7 +798,7 @@ export function AdminPage() {
             <input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Search by name, category or description" className="w-full md:w-80 rounded-xl border px-4 py-3 outline-none focus:border-orange-400" />
           </div>
           {visibleProducts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-8 text-center text-gray-500">No products match the current filter.</div>
+            <div className="rounded-2xl border border-dashed p-8 text-center text-gray-500 dark:text-slate-400">No products match the current filter.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {visibleProducts.map((product) => (
@@ -627,7 +808,7 @@ export function AdminPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="font-semibold text-lg">{product.name}</h3>
-                        <p className="text-sm text-gray-500">{product.category}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{product.category}</p>
                       </div>
                       <span className="text-lg font-bold text-orange-600">EUR {Number(product.price).toFixed(2)}</span>
                     </div>
@@ -635,10 +816,16 @@ export function AdminPage() {
                       <span className={`rounded-full px-2 py-1 text-xs font-semibold ${product.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                         {product.is_available ? 'Available' : 'Sold out'}
                       </span>
+                      <span className={`ml-2 rounded-full px-2 py-1 text-xs font-semibold ${product.is_active ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'}`}>
+                        {product.is_active ? 'Active' : 'Archived'}
+                      </span>
                     </div>
-                    <p className="text-sm text-gray-600 min-h-[2.5rem]">{product.description || 'No description yet.'}</p>
+                    <p className="text-sm text-gray-600 dark:text-slate-300 min-h-[2.5rem]">{product.description || 'No description yet.'}</p>
                     <div className="flex gap-2">
-                      <button onClick={() => startEditingProduct(product)} className="flex-1 rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50">Edit</button>
+                      <button onClick={() => startEditingProduct(product)} className="flex-1 rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800">Edit</button>
+                      <button onClick={() => handleArchiveProduct(product.id, product.is_active)} className="flex-1 rounded-xl bg-amber-50 text-amber-700 px-4 py-2 text-sm font-semibold hover:bg-amber-100">
+                        {product.is_active ? 'Archive' : 'Restore'}
+                      </button>
                       <button onClick={() => handleDeleteProduct(product.id)} className="flex-1 rounded-xl bg-red-50 text-red-600 px-4 py-2 text-sm font-semibold hover:bg-red-100">Delete</button>
                     </div>
                   </div>
@@ -647,19 +834,19 @@ export function AdminPage() {
             </div>
           )}
         </article>
-      </section>
+      </section>}
 
       {metrics && (
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-xs text-gray-500">Requests</p><p className="text-2xl font-bold">{metrics.total_requests}</p></div>
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-xs text-gray-500">Errors (5xx)</p><p className="text-2xl font-bold text-red-600">{metrics.total_errors}</p></div>
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-xs text-gray-500">Avg latency</p><p className="text-2xl font-bold">{metrics.average_latency_ms.toFixed(1)} ms</p></div>
-          <div className="bg-white rounded-2xl shadow-sm p-4"><p className="text-xs text-gray-500">In flight</p><p className="text-2xl font-bold">{metrics.in_flight_requests}</p></div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4"><p className="text-xs text-gray-500 dark:text-slate-400">Requests</p><p className="text-2xl font-bold">{metrics.total_requests}</p></div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4"><p className="text-xs text-gray-500 dark:text-slate-400">Errors (5xx)</p><p className="text-2xl font-bold text-red-600">{metrics.total_errors}</p></div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4"><p className="text-xs text-gray-500 dark:text-slate-400">Avg latency</p><p className="text-2xl font-bold">{metrics.average_latency_ms.toFixed(1)} ms</p></div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4"><p className="text-xs text-gray-500 dark:text-slate-400">In flight</p><p className="text-2xl font-bold">{metrics.in_flight_requests}</p></div>
         </section>
       )}
 
       {opsStatus && (
-        <section className="bg-white rounded-3xl shadow-sm p-6">
+        <section className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-2xl font-bold">Operational status</h2>
             <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -670,37 +857,37 @@ export function AdminPage() {
                   : 'bg-red-100 text-red-700'
             }`}>{opsStatus.status.toUpperCase()}</span>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-slate-300 mb-4">
             Error rate: {opsStatus.stats.error_rate_percent.toFixed(2)}% · Print failures: {opsStatus.stats.print_failures}
           </p>
           {opsStatus.recent_critical_events.length > 0 ? (
             <div className="space-y-3">
               {opsStatus.recent_critical_events.slice(0, 5).map((event, index) => (
                 <div key={`${event.timestamp}-${index}`} className="rounded-2xl border p-3 text-sm">
-                  <p className="font-semibold text-gray-900">{event.event}</p>
-                  <p className="text-gray-600">{event.detail}</p>
+                  <p className="font-semibold text-gray-900 dark:text-slate-100">{event.event}</p>
+                  <p className="text-gray-600 dark:text-slate-300">{event.detail}</p>
                   <p className="text-xs text-gray-400 mt-1">{new Date(event.timestamp).toLocaleString()}</p>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-gray-500">No critical events recorded.</p>}
+          ) : <p className="text-sm text-gray-500 dark:text-slate-400">No critical events recorded.</p>}
         </section>
       )}
 
       {auditEvents && (
-        <section className="bg-white rounded-3xl shadow-sm p-6">
+        <section className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <h2 className="text-2xl font-bold mb-4">Recent audit events</h2>
           {auditEvents.events.length > 0 ? (
             <div className="space-y-3">
               {auditEvents.events.map((event, index) => (
                 <div key={`${event.timestamp}-${index}`} className="rounded-2xl border p-3 text-sm">
-                  <p className="font-semibold text-gray-900">{event.event}</p>
-                  <p className="text-gray-600">{event.detail}</p>
+                  <p className="font-semibold text-gray-900 dark:text-slate-100">{event.event}</p>
+                  <p className="text-gray-600 dark:text-slate-300">{event.detail}</p>
                   <p className="text-xs text-gray-400 mt-1">{new Date(event.timestamp).toLocaleString()}</p>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-gray-500">No audit events available.</p>}
+          ) : <p className="text-sm text-gray-500 dark:text-slate-400">No audit events available.</p>}
         </section>
       )}
     </div>

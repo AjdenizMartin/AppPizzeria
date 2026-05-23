@@ -3,7 +3,11 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_admin, get_db, get_optional_current_user
+from app.core.dependencies import (
+    get_db,
+    get_optional_current_user,
+    require_staff_or_manager_or_owner,
+)
 from app.core.observability import log_business_event
 from app.database.models import User
 from app.schemas.order import (
@@ -25,6 +29,21 @@ from app.services.order_service import (
 )
 
 router = APIRouter(tags=["orders"])
+
+
+def _timeline_label(status: str) -> str:
+    mapping = {
+        "created": "Pedido recibido",
+        "paid": "Pago confirmado",
+        "accepted": "Preparando",
+        "printing": "En impresion",
+        "printed": "Listo en cocina",
+        "ready": "Listo",
+        "delivered": "Entregado",
+        "cancelled": "Cancelado",
+        "failed": "Incidencia",
+    }
+    return mapping.get(status, status)
 
 
 @router.post("/orders", response_model=OrderCreateResponse, status_code=status.HTTP_201_CREATED)
@@ -82,7 +101,34 @@ def get_order_tracking(
     db: Session = Depends(get_db),
 ):
     try:
-        return get_order_for_tracking(db, order_id=order_id, email=email, phone=phone)
+        order = get_order_for_tracking(db, order_id=order_id, email=email, phone=phone)
+        timeline = [
+            {
+                "status": event.new_status,
+                "label": _timeline_label(event.new_status),
+                "created_at": event.created_at,
+            }
+            for event in order.status_events
+        ]
+        return {
+            "id": order.id,
+            "status": order.status,
+            "customer_name": order.customer_name,
+            "customer_email": order.customer_email,
+            "customer_phone": order.customer_phone,
+            "delivery_address": order.delivery_address,
+            "delivery_city": order.delivery_city,
+            "delivery_postal_code": order.delivery_postal_code,
+            "delivery_notes": order.delivery_notes,
+            "payment_method": order.payment_method,
+            "delivery_fee": order.delivery_fee,
+            "total_price": order.total_price,
+            "created_at": order.created_at,
+            "updated_at": order.updated_at,
+            "items": order.items,
+            "print_jobs": order.print_jobs,
+            "status_events": timeline,
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LookupError:
@@ -101,7 +147,7 @@ def list_orders_endpoint(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _current_admin=Depends(get_current_admin),
+    _current_admin=Depends(require_staff_or_manager_or_owner),
 ):
     return list_orders(
         db,
@@ -121,10 +167,15 @@ def update_order_status_endpoint(
     order_id: int,
     payload: OrderStatusUpdate,
     db: Session = Depends(get_db),
-    _current_admin=Depends(get_current_admin),
+    current_admin: User = Depends(require_staff_or_manager_or_owner),
 ):
     try:
-        updated = update_order_status(db, order_id=order_id, next_status=payload.status)
+        updated = update_order_status(
+            db,
+            order_id=order_id,
+            next_status=payload.status,
+            changed_by_user_id=current_admin.id,
+        )
         log_business_event(
             event="order_status_updated",
             request=request,
@@ -143,10 +194,14 @@ def reprint_order_endpoint(
     request: Request,
     order_id: int,
     db: Session = Depends(get_db),
-    _current_admin=Depends(get_current_admin),
+    current_admin: User = Depends(require_staff_or_manager_or_owner),
 ):
     try:
-        order, job = requeue_order_print(db, order_id=order_id)
+        order, job = requeue_order_print(
+            db,
+            order_id=order_id,
+            changed_by_user_id=current_admin.id,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

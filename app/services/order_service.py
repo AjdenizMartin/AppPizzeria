@@ -5,13 +5,19 @@ from sqlalchemy.orm import Session
 
 from app.database import models
 from app.schemas.order import OrderCreate
-from app.services.email_service import send_order_confirmation_email
+from app.services.email_service import (
+    send_order_cancelled_email,
+    send_order_confirmation_email,
+    send_order_ready_email,
+)
+from app.services.order_status_event_service import add_status_event
 from app.services.printing_service import (
     enqueue_print_job,
     get_order_with_details,
     list_recent_orders,
     request_reprint,
 )
+from app.services.restaurant_service import get_or_create_settings, is_restaurant_open
 
 ALLOWED_ORDER_TRANSITIONS = {
     "created": {"paid", "cancelled"},
@@ -50,6 +56,12 @@ def create_order(
         raise ValueError("Delivery address, city and postal code are required")
 
     try:
+        settings = get_or_create_settings(db)
+        open_status = is_restaurant_open(db)
+        if not open_status["is_open"]:
+            raise ValueError(open_status["message"])
+        if not settings.is_accepting_orders:
+            raise ValueError("Orders are currently paused by the restaurant")
         order = models.Order(
             status="created",
             total_price=Decimal("0"),
@@ -62,7 +74,7 @@ def create_order(
             delivery_postal_code=delivery_postal_code,
             delivery_notes=delivery_notes or None,
             payment_method=payload.payment_method,
-            delivery_fee=Decimal(str(payload.delivery_fee)),
+            delivery_fee=Decimal(str(settings.delivery_fee)),
         )
         db.add(order)
         db.flush()
@@ -95,7 +107,20 @@ def create_order(
         if created_items == 0:
             raise ValueError("No valid products found")
 
-        order.total_price = total + Decimal(str(payload.delivery_fee))
+        if total < Decimal(str(settings.minimum_order_amount)):
+            raise ValueError(
+                f"Minimum order amount is EUR {float(settings.minimum_order_amount):.2f}"
+            )
+
+        order.total_price = total + Decimal(str(settings.delivery_fee))
+        add_status_event(
+            db,
+            order=order,
+            old_status=None,
+            new_status="created",
+            source="customer",
+            changed_by_user_id=current_user.id if current_user else None,
+        )
         db.commit()
         db.refresh(order)
     except Exception:
@@ -120,6 +145,15 @@ def create_cash_checkout_order(
             raise LookupError("Order not found after creation")
 
         order.status = "accepted"
+        add_status_event(
+            db,
+            order=order,
+            old_status="created",
+            new_status="accepted",
+            source="system",
+            changed_by_user_id=current_user.id if current_user else None,
+            note="cash checkout",
+        )
         enqueue_print_job(
             db,
             order,
@@ -130,7 +164,7 @@ def create_cash_checkout_order(
     except Exception:
         db.rollback()
         raise
-    send_order_confirmation_email(order, payment_method="cash")
+    send_order_confirmation_email(db, order, payment_method="cash")
 
     return {
         "order_id": order.id,
@@ -154,6 +188,13 @@ def mark_order_paid_after_checkout(db: Session, *, order_id: int) -> models.Orde
 
     order.status = "accepted"
     order.payment_method = "card"
+    add_status_event(
+        db,
+        order=order,
+        old_status=current_status,
+        new_status="accepted",
+        source="stripe",
+    )
     enqueue_print_job(
         db,
         order,
@@ -161,7 +202,7 @@ def mark_order_paid_after_checkout(db: Session, *, order_id: int) -> models.Orde
     )
     db.commit()
     db.refresh(order)
-    send_order_confirmation_email(order, payment_method="card")
+    send_order_confirmation_email(db, order, payment_method="card")
     return order
 
 
@@ -214,7 +255,13 @@ def get_order_for_tracking(
     return order
 
 
-def update_order_status(db: Session, *, order_id: int, next_status: str) -> models.Order:
+def update_order_status(
+    db: Session,
+    *,
+    order_id: int,
+    next_status: str,
+    changed_by_user_id: int | None = None,
+) -> models.Order:
     order = get_order_with_details(db, order_id)
     if order is None:
         raise LookupError("Order not found")
@@ -233,6 +280,14 @@ def update_order_status(db: Session, *, order_id: int, next_status: str) -> mode
 
     try:
         order.status = normalized_next
+        add_status_event(
+            db,
+            order=order,
+            old_status=current_status,
+            new_status=normalized_next,
+            source="admin",
+            changed_by_user_id=changed_by_user_id,
+        )
 
         if normalized_next == "accepted":
             enqueue_print_job(
@@ -248,10 +303,19 @@ def update_order_status(db: Session, *, order_id: int, next_status: str) -> mode
     refreshed = get_order_with_details(db, order.id)
     if refreshed is None:
         raise LookupError("Order not found after update")
+    if normalized_next == "ready":
+        send_order_ready_email(db, refreshed)
+    elif normalized_next == "cancelled":
+        send_order_cancelled_email(db, refreshed)
     return refreshed
 
 
-def requeue_order_print(db: Session, *, order_id: int) -> tuple[models.Order, models.PrintJob]:
+def requeue_order_print(
+    db: Session,
+    *,
+    order_id: int,
+    changed_by_user_id: int | None = None,
+) -> tuple[models.Order, models.PrintJob]:
     order = get_order_with_details(db, order_id)
     if order is None:
         raise LookupError("Order not found")
@@ -260,7 +324,17 @@ def requeue_order_print(db: Session, *, order_id: int) -> tuple[models.Order, mo
         raise ValueError("Cancelled orders cannot be printed")
 
     try:
+        previous_status = order.status
         job = request_reprint(db, order)
+        add_status_event(
+            db,
+            order=order,
+            old_status=previous_status,
+            new_status=order.status,
+            source="admin",
+            changed_by_user_id=changed_by_user_id,
+            note=f"reprint requested job:{job.id}",
+        )
         db.commit()
     except Exception:
         db.rollback()

@@ -10,6 +10,7 @@ type AuthContextValue = {
   error: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  role: 'owner' | 'manager' | 'staff' | 'customer' | null;
   login: (email: string, password: string) => Promise<unknown>;
   register: (payload: Parameters<typeof authService.register>[0]) => Promise<unknown>;
   updateProfile: (payload: Partial<User>) => Promise<User>;
@@ -124,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error,
       isAuthenticated: !!user,
       isAdmin: user?.is_admin ?? false,
+      role: user?.role ?? null,
       login,
       register,
       updateProfile,

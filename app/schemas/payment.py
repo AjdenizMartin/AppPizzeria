@@ -1,15 +1,8 @@
-from pydantic import BaseModel, Field
-
-
-class CheckoutItem(BaseModel):
-    name: str
-    price: float = Field(gt=0)
-    quantity: int = Field(default=1, ge=1)
+from pydantic import BaseModel
 
 
 class CheckoutRequest(BaseModel):
-    items: list[CheckoutItem]
-    order_id: int | None = None
+    order_id: int
 
 
 class CheckoutResponse(BaseModel):

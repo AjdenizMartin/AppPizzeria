@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import PRINT_JOB_MAX_ATTEMPTS
 from app.database import models
+from app.services.order_status_event_service import add_status_event
 
 ACTIVE_PRINT_JOB_STATUSES = ("pending", "printing")
 
@@ -29,6 +30,7 @@ def list_recent_orders(
         .options(
             joinedload(models.Order.items),
             joinedload(models.Order.print_jobs),
+            joinedload(models.Order.status_events),
         )
     )
 
@@ -66,6 +68,7 @@ def get_order_with_details(db: Session, order_id: int) -> models.Order | None:
         .options(
             joinedload(models.Order.items),
             joinedload(models.Order.print_jobs),
+            joinedload(models.Order.status_events),
         )
         .where(models.Order.id == order_id)
     )
@@ -148,6 +151,14 @@ def pull_next_print_job(db: Session, *, agent_id: str) -> models.PrintJob | None
     job.attempt_count += 1
     job.updated_at = utc_now()
     job.order.status = "printing"
+    add_status_event(
+        db,
+        order=job.order,
+        old_status="accepted",
+        new_status="printing",
+        source="print_agent",
+        note=f"job:{job.id}",
+    )
     db.commit()
     db.refresh(job)
     return job
@@ -176,6 +187,14 @@ def mark_print_job_completed(db: Session, *, job_id: int, agent_id: str) -> mode
     job.printed_at = utc_now()
     job.updated_at = utc_now()
     order.status = "printed"
+    add_status_event(
+        db,
+        order=order,
+        old_status="printing",
+        new_status="printed",
+        source="print_agent",
+        note=f"job:{job.id}",
+    )
 
     db.commit()
     db.refresh(job)
@@ -212,9 +231,25 @@ def mark_print_job_failed(
     if job.attempt_count < job.max_attempts:
         job.status = "pending"
         order.status = "accepted"
+        add_status_event(
+            db,
+            order=order,
+            old_status="printing",
+            new_status="accepted",
+            source="print_agent",
+            note=f"retry job:{job.id}",
+        )
     else:
         job.status = "failed"
         order.status = "failed"
+        add_status_event(
+            db,
+            order=order,
+            old_status="printing",
+            new_status="failed",
+            source="print_agent",
+            note=f"failed job:{job.id}",
+        )
 
     db.commit()
     db.refresh(job)

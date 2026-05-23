@@ -78,13 +78,43 @@ def get_optional_current_user(
 
 
 def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_admin:
+    role = (current_user.role or "").lower()
+    if current_user.is_admin and role not in {"owner", "manager", "staff"}:
+        current_user.role = "owner"
+    if not current_user.is_admin and role not in {"owner", "manager", "staff"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
 
     return current_user
+
+
+def require_owner(current_user: User = Depends(get_current_user)) -> User:
+    role = (current_user.role or "").lower()
+    if role == "owner" or (current_user.is_admin and role == ""):
+        return current_user
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner access required")
+
+
+def require_manager_or_owner(current_user: User = Depends(get_current_user)) -> User:
+    role = (current_user.role or "").lower()
+    if role in {"owner", "manager"} or (current_user.is_admin and role == ""):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Manager or owner access required",
+    )
+
+
+def require_staff_or_manager_or_owner(current_user: User = Depends(get_current_user)) -> User:
+    role = (current_user.role or "").lower()
+    if role in {"owner", "manager", "staff"} or (current_user.is_admin and role == ""):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Staff, manager or owner access required",
+    )
 
 
 def require_print_agent(
