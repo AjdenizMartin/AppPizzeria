@@ -3,6 +3,7 @@ import type { SyntheticEvent } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { CartDrawer } from './components/CartDrawer';
+import { FloatingCartButton } from './components/FloatingCartButton';
 import { AuthModal } from './components/AuthModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { HomePage } from './pages/HomePage';
@@ -51,7 +52,7 @@ function AppContent() {
       <Navbar
         onCartClick={() => setCartOpen(true)}
         onAuthClick={() => setAuthOpen(true)}
-        showCart={!isAdminRoute}
+        showCart={false}
       />
       <main className="max-w-7xl mx-auto px-4 py-8">
         <Routes>
@@ -73,11 +74,14 @@ function AppContent() {
       </main>
 
       {!isAdminRoute && (
-        <CartDrawer
-          isOpen={cartOpen}
-          onClose={() => setCartOpen(false)}
-          onCheckout={() => navigate('/checkout')}
-        />
+        <>
+          <FloatingCartButton onClick={() => setCartOpen(true)} />
+          <CartDrawer
+            isOpen={cartOpen}
+            onClose={() => setCartOpen(false)}
+            onCheckout={() => navigate('/checkout')}
+          />
+        </>
       )}
 
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />

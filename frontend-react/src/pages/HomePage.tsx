@@ -71,7 +71,7 @@ export function HomePage({ onImageError }: HomePageProps) {
       <section className="rounded-2xl overflow-hidden shadow-lg border border-[#e6d9c7] dark:border-slate-700 bg-[#fdfaf5] dark:bg-slate-900">
         <div className="relative min-h-[220px] md:min-h-[300px]">
           <img
-            src={'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1400&q=80'}
+            src="/static/images/peperonni.jpg"
             alt="Pizzeria cover"
             className="absolute inset-0 h-full w-full object-cover"
           />

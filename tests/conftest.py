@@ -8,6 +8,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.dependencies import get_db
 from app.database.database import Base
 from app.main import app
+from app.services import file_service
+
+
+@pytest.fixture(autouse=True)
+def product_images_dir(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(file_service, "PRODUCT_IMAGES_DIR", tmp_path / "product-images")
 
 
 @pytest.fixture()

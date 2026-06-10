@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { orderService, restaurantService } from '../services/api';
 import type { Order } from '../types';
@@ -26,7 +26,7 @@ export function OrderTrackingPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [restaurantName, setRestaurantName] = useState('Pizzeria');
 
-  const fetchTracking = async () => {
+  const fetchTracking = useCallback(async () => {
     if (!orderId.trim()) {
       setError('Order ID is required');
       return;
@@ -50,7 +50,7 @@ export function OrderTrackingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, orderId, phone]);
 
   useEffect(() => {
     restaurantService.getPublicSettings().then((s) => setRestaurantName(s.restaurant_name)).catch(() => {});
@@ -62,7 +62,7 @@ export function OrderTrackingPage() {
     }
     const interval = setInterval(fetchTracking, 30000);
     return () => clearInterval(interval);
-  }, [order, orderId, email, phone]);
+  }, [order, fetchTracking]);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -15,8 +17,20 @@ class PrintAgentJobItem(BaseModel):
 
 class PrintAgentJobOrder(BaseModel):
     id: int
+    daily_order_number: int
     status: str
+    customer_name: str
+    customer_email: str | None = None
+    customer_phone: str
+    delivery_address: str
+    delivery_city: str
+    delivery_postal_code: str
+    delivery_notes: str | None = None
+    payment_method: str
+    subtotal: float
+    delivery_fee: float
     total_price: float
+    created_at: datetime
     items: list[PrintAgentJobItem]
 
 

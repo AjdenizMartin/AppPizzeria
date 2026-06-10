@@ -1,4 +1,4 @@
-FROM node:22.12-alpine AS frontend-builder
+FROM node:22.13-alpine AS frontend-builder
 WORKDIR /build/frontend-react
 
 COPY frontend-react/package*.json ./

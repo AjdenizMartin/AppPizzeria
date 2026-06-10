@@ -47,7 +47,7 @@ Terminal 2:
 
 ```bash
 cd frontend-react
-npm install
+npm ci
 npm run dev
 ```
 
@@ -74,7 +74,7 @@ VITE_API_URL=http://127.0.0.1:8000
 
 ```bash
 cd frontend-react
-npm install
+npm ci
 npm run build
 cd ..
 python -m uvicorn app.main:app --reload
@@ -87,6 +87,42 @@ URLs:
 
 En este modo el backend sirve `frontend-react/dist` como SPA.
 
+
+## Instalacion unica (app + frontend + print agent)
+
+Si quieres dejar todo listo con una sola instalacion (dependencias, build React, migraciones y servicio de impresion):
+
+```bash
+./scripts/install_all_in_one.sh
+```
+
+Este instalador:
+- crea/actualiza `.env`
+- genera `PRINT_AGENT_KEY` segura si falta
+- instala backend en `.venv`
+- compila `frontend-react/dist`
+- ejecuta `alembic upgrade head`
+- opcionalmente instala/actualiza `pizzeria-print-agent` con `systemd`
+
+Despues, para arrancar API:
+
+```bash
+source .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Para arranque diario (migraciones + chequeo print agent + API):
+
+```bash
+./scripts/run_all.sh
+```
+
+Para detener todo (API local + print agent):
+
+```bash
+./scripts/stop_all.sh
+```
+
 ## Stripe
 
 - Checkout: `POST /create-checkout-session`
@@ -98,10 +134,18 @@ En este modo el backend sirve `frontend-react/dist` como SPA.
 ## Calidad
 
 ```bash
-cd frontend-react && npm install && npm run build
-cd ..
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/ruff check app tests migrations print_agent scripts
 .venv/bin/pytest -q
-.venv/bin/ruff check app tests
+.venv/bin/alembic heads
+
+cd frontend-react
+npm ci
+npm run build
+npm run lint
+cd ..
 ```
 
 ## Produccion (Railway + PostgreSQL)
@@ -109,9 +153,12 @@ cd ..
 - Usar `APP_ENV=production`.
 - Usar `DATABASE_URL` de PostgreSQL (no SQLite).
 - Usar migraciones Alembic: no depender de `AUTO_CREATE_TABLES`.
-- Configurar dominio real en `FRONTEND_BASE_URL` y `CORS_ORIGINS` restringido.
+- Usar inicialmente la URL publica de Railway en `FRONTEND_BASE_URL` y `CORS_ORIGINS`.
+- Cambiar a dominio real cuando DNS/TLS esten listos.
 - El arranque productivo ejecuta migraciones antes de levantar API con:
   - `scripts/start_production.sh`
+- Stripe webhook: `/stripe/webhook`
+- SMTP real y print agent fisico se configuran en la fase de staging/prod.
 
 Variables minimas:
 
@@ -137,8 +184,17 @@ SMTP_USE_TLS=true
 Checklist predeploy:
 
 ```bash
-python scripts/validate_predeploy.py
-alembic upgrade head
+APP_ENV=production \
+AUTO_CREATE_TABLES=false \
+DATABASE_URL=postgresql://user:pass@localhost:5432/pizzeria_test \
+FRONTEND_BASE_URL=https://example.com \
+CORS_ORIGINS=https://example.com \
+SECRET_KEY=test-secret-key-that-is-not-default \
+STRIPE_KEY=sk_test_dummy \
+STRIPE_WEBHOOK_SECRET=whsec_test_dummy \
+PRINT_AGENT_KEY=test-print-key \
+ADMIN_EMAILS=owner@example.com \
+.venv/bin/python scripts/validate_predeploy.py
 ```
 
 Railway:
@@ -167,8 +223,9 @@ Print agent en restaurante (local):
 1. Configurar `PRINT_AGENT_KEY` igual en backend y agente.
 2. En el equipo del restaurante, usar archivo env (ejemplo):
    - `/etc/pizzeria-print-agent.env`
-   - `BACKEND_URL=https://app.tudominio.com`
+   - `PRINT_AGENT_API_URL=https://app.tudominio.com`
    - `PRINT_AGENT_KEY=...`
+   - `PRINT_AGENT_TICKET_WIDTH=42` para papel 80mm
 3. Ejecutar como servicio (`systemd`) con reinicio automático.
 4. Verificar flujo:
    - pedido `accepted` -> `print_jobs` pending

@@ -33,12 +33,14 @@ export function CheckoutPage() {
     if (!user) {
       return;
     }
-    setCustomerName((current) => current || user.full_name || '');
-    setCustomerEmail((current) => current || user.email || '');
-    setCustomerPhone((current) => current || user.phone || '');
-    setDeliveryAddress((current) => current || user.address_line || '');
-    setDeliveryCity((current) => current || user.city || '');
-    setDeliveryPostalCode((current) => current || user.postal_code || '');
+    queueMicrotask(() => {
+      setCustomerName((current) => current || user.full_name || '');
+      setCustomerEmail((current) => current || user.email || '');
+      setCustomerPhone((current) => current || user.phone || '');
+      setDeliveryAddress((current) => current || user.address_line || '');
+      setDeliveryCity((current) => current || user.city || '');
+      setDeliveryPostalCode((current) => current || user.postal_code || '');
+    });
   }, [user]);
 
   useEffect(() => {

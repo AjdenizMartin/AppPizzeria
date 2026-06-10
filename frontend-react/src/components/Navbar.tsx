@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -13,18 +13,22 @@ export function Navbar({ onCartClick, onAuthClick, showCart = true }: NavbarProp
   const { itemCount } = useCart();
   const { isAuthenticated, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { pathname } = useLocation();
+  const isAdminPage = pathname.startsWith('/admin');
 
   return (
     <nav className="bg-[#f6f0e7]/95 dark:bg-slate-900/95 backdrop-blur shadow-md sticky top-0 z-30 border-b border-[#e8dccb] dark:border-slate-700">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#dec9ac] dark:border-slate-600 text-[#9a5b15] dark:text-slate-100 hover:bg-[#efe1ce] dark:hover:bg-slate-800 transition-colors font-semibold"
-          >
-            <span aria-hidden="true">⌂</span>
-            <span>Home</span>
-          </Link>
+        <div className={`flex items-center h-16 ${isAdminPage ? 'justify-end' : 'justify-between'}`}>
+          {!isAdminPage && (
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#dec9ac] dark:border-slate-600 text-[#9a5b15] dark:text-slate-100 hover:bg-[#efe1ce] dark:hover:bg-slate-800 transition-colors font-semibold"
+            >
+              <span aria-hidden="true">⌂</span>
+              <span>Home</span>
+            </Link>
+          )}
 
           <div className="flex items-center gap-4">
             <div

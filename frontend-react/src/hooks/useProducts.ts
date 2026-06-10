@@ -22,7 +22,9 @@ export function useProducts() {
   }, []);
 
   useEffect(() => {
-    fetchProducts();
+    queueMicrotask(() => {
+      void fetchProducts();
+    });
   }, [fetchProducts]);
 
   const getByCategory = useCallback(

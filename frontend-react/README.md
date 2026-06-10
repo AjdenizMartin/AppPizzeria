@@ -6,7 +6,7 @@ Este es el frontend oficial de la aplicacion.
 
 ```bash
 cd frontend-react
-npm install
+npm ci
 npm run dev
 ```
 

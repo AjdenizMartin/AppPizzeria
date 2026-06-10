@@ -17,11 +17,18 @@ import type {
 
 function resolveApiBaseUrl() {
   const configured = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
+  const { hostname, port, protocol } = window.location;
+
   if (configured) {
+    const configuredUrl = new URL(configured, window.location.origin);
+    const isLocalBackend =
+      ['localhost', '127.0.0.1'].includes(configuredUrl.hostname) && configuredUrl.port === '8000';
+    if (isLocalBackend && port === '8000') {
+      return '';
+    }
     return configured;
   }
 
-  const { hostname, port, protocol } = window.location;
   if (port === '5173' || port === '4173') {
     return `${protocol}//${hostname === '0.0.0.0' ? '127.0.0.1' : hostname}:8000`;
   }

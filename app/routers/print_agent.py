@@ -1,8 +1,12 @@
+from datetime import datetime, time, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, require_print_agent
 from app.core.observability import log_business_event
+from app.database import models
 from app.schemas.order import PrintJobRead
 from app.schemas.printing import (
     PrintAgentJobFailRequest,
@@ -19,15 +23,40 @@ from app.services.printing_service import (
 router = APIRouter(prefix="/print-agent", tags=["print-agent"])
 
 
-def _build_job_payload(job) -> dict:
+def _get_daily_order_number(db: Session, order: models.Order) -> int:
+    created_date = order.created_at.date()
+    start = datetime.combine(created_date, time.min, tzinfo=order.created_at.tzinfo)
+    end = start + timedelta(days=1)
+    stmt = select(func.count(models.Order.id)).where(
+        models.Order.created_at >= start,
+        models.Order.created_at < end,
+        models.Order.id <= order.id,
+    )
+    return int(db.scalar(stmt) or 1)
+
+
+def _build_job_payload(db: Session, job) -> dict:
+    subtotal = sum(float(item.price) * item.quantity for item in job.order.items)
     return {
         "job_id": job.id,
         "attempt_count": job.attempt_count,
         "max_attempts": job.max_attempts,
         "order": {
             "id": job.order.id,
+            "daily_order_number": _get_daily_order_number(db, job.order),
             "status": job.order.status,
+            "customer_name": job.order.customer_name,
+            "customer_email": job.order.customer_email,
+            "customer_phone": job.order.customer_phone,
+            "delivery_address": job.order.delivery_address,
+            "delivery_city": job.order.delivery_city,
+            "delivery_postal_code": job.order.delivery_postal_code,
+            "delivery_notes": job.order.delivery_notes or "",
+            "payment_method": job.order.payment_method,
+            "subtotal": subtotal,
+            "delivery_fee": float(job.order.delivery_fee),
             "total_price": job.order.total_price,
+            "created_at": job.order.created_at,
             "items": [
                 {
                     "product_id": item.product_id,
@@ -59,7 +88,7 @@ def pull_print_job(
         print_job_id=job.id,
         status=job.status,
     )
-    return {"job": _build_job_payload(job)}
+    return {"job": _build_job_payload(db, job)}
 
 
 @router.post("/jobs/{job_id}/complete", response_model=PrintJobRead)

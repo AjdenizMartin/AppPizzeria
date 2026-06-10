@@ -18,6 +18,8 @@ type AuthContextValue = {
   checkAuth: () => Promise<void>;
 };
 
+type RegisterPayload = Parameters<typeof authService.register>[0];
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,7 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    checkAuth();
+    queueMicrotask(() => {
+      void checkAuth();
+    });
   }, [checkAuth]);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -70,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (payload: Parameters<typeof authService.register>[0]) => {
+  const register = useCallback(async (payload: RegisterPayload) => {
     setLoading(true);
     setError(null);
     try {

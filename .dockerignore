@@ -10,7 +10,8 @@ frontend-react/node_modules
 frontend-react/dist
 tests
 ops
-scripts
+scripts/*
+!scripts/start_production.sh
 .vscode
 .env
 .env.*

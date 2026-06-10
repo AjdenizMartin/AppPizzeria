@@ -98,12 +98,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     if (!isOpen || !isAuthenticated) {
       return;
     }
-    setFullName(user?.full_name || '');
-    setPhone(user?.phone || '');
-    setAddress(user?.address_line || '');
-    setCity(user?.city || '');
-    setPostalCode(user?.postal_code || '');
-    setError('');
+    queueMicrotask(() => {
+      setFullName(user?.full_name || '');
+      setPhone(user?.phone || '');
+      setAddress(user?.address_line || '');
+      setCity(user?.city || '');
+      setPostalCode(user?.postal_code || '');
+      setError('');
+    });
   }, [isAuthenticated, isOpen, user]);
 
   if (!isOpen) return null;

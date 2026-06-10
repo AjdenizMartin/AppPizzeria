@@ -30,6 +30,15 @@ const ALERT_THRESHOLDS = {
   readyUndeliveredMinutes: 20,
 };
 const WEEKDAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const ORDER_PAGE_SIZE = 10;
+
+function getTodayDateInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 type ProductFormState = {
   name: string;
@@ -148,10 +157,8 @@ export function AdminPage() {
 
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [orderDate] = useState(() => getTodayDateInputValue());
   const [searchFilter, setSearchFilter] = useState('');
-  const [orderLimit] = useState(20);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
@@ -173,17 +180,17 @@ export function AdminPage() {
       const response = await orderService.getAdminOrdersFiltered({
         status: statusFilter || undefined,
         payment_method: paymentFilter || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
+        date_from: orderDate,
+        date_to: orderDate,
         search: searchFilter.trim() || undefined,
-        limit: orderLimit,
+        limit: ORDER_PAGE_SIZE,
         offset: nextOffset,
       });
-      setHasMore(response.length === orderLimit);
+      setHasMore(response.length === ORDER_PAGE_SIZE);
       setOffset(nextOffset);
       setOrders((current) => (append ? [...current, ...response] : response));
     },
-    [statusFilter, paymentFilter, dateFrom, dateTo, searchFilter, orderLimit]
+    [statusFilter, paymentFilter, orderDate, searchFilter]
   );
 
   const fetchDashboard = useCallback(async () => {
@@ -231,16 +238,20 @@ export function AdminPage() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetchDashboard();
-    fetchSalesReport(reportDate);
+    queueMicrotask(() => {
+      void fetchDashboard();
+      void fetchSalesReport(reportDate);
+    });
     const interval = setInterval(fetchDashboard, 30000);
     return () => clearInterval(interval);
   }, [isAdmin, fetchDashboard, fetchSalesReport, reportDate]);
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetchOrders(0, false).catch(() => {
-      setError('Could not apply order filters');
+    queueMicrotask(() => {
+      fetchOrders(0, false).catch(() => {
+        setError('Could not apply order filters');
+      });
     });
   }, [isAdmin, fetchOrders]);
 
@@ -566,8 +577,13 @@ export function AdminPage() {
       </section>}
 
       <section className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
-        <h2 className="text-2xl font-bold">Order filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Order filters</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Showing today's orders: {orderDate}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border px-4 py-2">
             <option value="">All status</option>
             {Object.keys(ORDER_STATUS_TRANSITIONS).map((status) => (
@@ -579,8 +595,6 @@ export function AdminPage() {
             <option value="card">card</option>
             <option value="cash">cash</option>
           </select>
-          <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="rounded-xl border px-4 py-2" />
-          <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="rounded-xl border px-4 py-2" />
           <input
             value={searchFilter}
             onChange={(event) => setSearchFilter(event.target.value)}
@@ -718,7 +732,7 @@ export function AdminPage() {
             })}
             {hasMore && (
               <button
-                onClick={() => fetchOrders(offset + orderLimit, true)}
+                onClick={() => fetchOrders(offset + ORDER_PAGE_SIZE, true)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
               >
                 Load more
