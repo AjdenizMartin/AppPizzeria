@@ -26,7 +26,7 @@ def upgrade() -> None:
             "users",
             sa.Column("role", sa.String(length=20), nullable=False, server_default="customer"),
         )
-    op.execute(sa.text("UPDATE users SET role = 'owner' WHERE is_admin = 1"))
+    op.execute(sa.text("UPDATE users SET role = 'owner' WHERE is_admin = true"))
     op.execute(sa.text("UPDATE users SET role = 'customer' WHERE role IS NULL OR role = ''"))
 
 
