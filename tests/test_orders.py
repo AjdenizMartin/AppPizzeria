@@ -212,6 +212,37 @@ def test_create_order_rejects_missing_delivery_fields(client, db_session: Sessio
     assert response.status_code in {400, 422}
 
 
+def test_create_collection_order_skips_delivery_fee(client, db_session: Session):
+    product = models.Product(
+        name="Collection Pizza",
+        price=10.0,
+        category="Pizzas",
+        description="X",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    payload = _order_payload(product.id)
+    payload.update(
+        {
+            "fulfillment_method": "collection",
+            "delivery_address": "",
+            "delivery_city": "",
+            "delivery_postal_code": "",
+        }
+    )
+
+    response = client.post("/orders", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["total"] == 10.0
+    order = db_session.get(models.Order, response.json()["order_id"])
+    assert order is not None
+    assert order.fulfillment_method == "collection"
+    assert float(order.delivery_fee) == 0
+
+
 def test_create_order_rejects_sold_out_product(client, db_session: Session):
     product = models.Product(
         name="Sold Out Pizza",

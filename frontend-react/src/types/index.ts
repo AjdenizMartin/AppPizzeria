@@ -68,6 +68,7 @@ export interface Order {
   delivery_city: string;
   delivery_postal_code: string;
   delivery_notes: string | null;
+  fulfillment_method: 'delivery' | 'collection';
   payment_method: string;
   delivery_fee: number;
   total_price: number;

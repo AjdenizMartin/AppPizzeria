@@ -614,6 +614,15 @@ export function AdminPage() {
           <div className="space-y-4">
             {orders.map((order) => {
               const currentStatus = String(order.status || 'created').toLowerCase();
+              const isCollection =
+                order.fulfillment_method === 'collection' ||
+                (order.delivery_address.toLowerCase() === 'collection' &&
+                  order.delivery_city.toLowerCase() === 'store');
+              const orderSubtotal = order.items.reduce(
+                (sum, item) => sum + Number(item.price) * item.quantity,
+                0
+              );
+              const displayTotal = isCollection ? orderSubtotal : Number(order.total_price);
               const allowedStatuses = [
                 currentStatus,
                 ...(ORDER_STATUS_TRANSITIONS[currentStatus] || []),
@@ -628,9 +637,14 @@ export function AdminPage() {
                       <p className="text-sm text-gray-500 dark:text-slate-400">
                         {order.customer_name} · {order.customer_phone} · {order.customer_email || 'no email'}
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-slate-300">
-                        {order.delivery_address}, {order.delivery_city} {order.delivery_postal_code}
+                      <p className="text-sm font-semibold text-gray-700 dark:text-slate-200">
+                        {isCollection ? 'Collection in store' : 'Delivery'}
                       </p>
+                      {!isCollection && (
+                        <p className="text-sm text-gray-600 dark:text-slate-300">
+                          {order.delivery_address}, {order.delivery_city} {order.delivery_postal_code}
+                        </p>
+                      )}
                       {order.delivery_notes && (
                         <p className="text-sm text-gray-600 dark:text-slate-300">Notes: {order.delivery_notes}</p>
                       )}
@@ -640,7 +654,7 @@ export function AdminPage() {
                         {order.status}
                       </span>
                       <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">Payment: {order.payment_method}</p>
-                      <p className="text-lg font-bold">EUR {Number(order.total_price).toFixed(2)}</p>
+                      <p className="text-lg font-bold">EUR {displayTotal.toFixed(2)}</p>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         Created: {new Date(order.created_at).toLocaleString()}
                       </p>

@@ -6,10 +6,11 @@ import { orderService, restaurantService } from '../services/api';
 
 export function CheckoutPage() {
   const navigate = useNavigate();
-  const { items, getSubtotal, getTotal, deliveryFee, clearCart } = useCart();
+  const { items, getSubtotal, deliveryFee, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<'delivery' | 'collection'>('delivery');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('card');
   const [customerName, setCustomerName] = useState(user?.full_name || '');
   const [customerEmail, setCustomerEmail] = useState(user?.email || '');
@@ -28,6 +29,8 @@ export function CheckoutPage() {
     temporary_closed_message: string | null;
   } | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
+  const activeDeliveryFee = fulfillmentMethod === 'delivery' ? Number(settings?.delivery_fee ?? deliveryFee) : 0;
+  const orderTotal = getSubtotal() + activeDeliveryFee;
 
   useEffect(() => {
     if (!user) {
@@ -82,9 +85,15 @@ export function CheckoutPage() {
     if (!trimmed.customerName) nextFieldErrors.customerName = 'Full name is required.';
     if (!trimmed.customerEmail) nextFieldErrors.customerEmail = 'Email is required.';
     if (!trimmed.customerPhone) nextFieldErrors.customerPhone = 'Phone is required.';
-    if (!trimmed.deliveryAddress) nextFieldErrors.deliveryAddress = 'Address is required.';
-    if (!trimmed.deliveryCity) nextFieldErrors.deliveryCity = 'City is required.';
-    if (!trimmed.deliveryPostalCode) nextFieldErrors.deliveryPostalCode = 'Postal code is required.';
+    if (fulfillmentMethod === 'delivery' && !trimmed.deliveryAddress) {
+      nextFieldErrors.deliveryAddress = 'Address is required.';
+    }
+    if (fulfillmentMethod === 'delivery' && !trimmed.deliveryCity) {
+      nextFieldErrors.deliveryCity = 'City is required.';
+    }
+    if (fulfillmentMethod === 'delivery' && !trimmed.deliveryPostalCode) {
+      nextFieldErrors.deliveryPostalCode = 'Postal code is required.';
+    }
     if (trimmed.customerPhone && trimmed.customerPhone.length < 3) {
       nextFieldErrors.customerPhone = 'Phone must have at least 3 characters.';
     }
@@ -110,9 +119,10 @@ export function CheckoutPage() {
         customer_name: trimmed.customerName,
         customer_email: trimmed.customerEmail,
         customer_phone: trimmed.customerPhone,
-        delivery_address: trimmed.deliveryAddress,
-        delivery_city: trimmed.deliveryCity,
-        delivery_postal_code: trimmed.deliveryPostalCode,
+        fulfillment_method: fulfillmentMethod,
+        delivery_address: fulfillmentMethod === 'delivery' ? trimmed.deliveryAddress : 'Collection',
+        delivery_city: fulfillmentMethod === 'delivery' ? trimmed.deliveryCity : 'Store',
+        delivery_postal_code: fulfillmentMethod === 'delivery' ? trimmed.deliveryPostalCode : 'N/A',
         delivery_notes: trimmed.deliveryNotes,
         payment_method: paymentMethod,
       };
@@ -187,7 +197,33 @@ export function CheckoutPage() {
       )}
 
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 p-6 mb-6">
-        <h2 className="font-semibold mb-4">Delivery details</h2>
+        <h2 className="font-semibold mb-4">Order details</h2>
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <button
+            type="button"
+            onClick={() => setFulfillmentMethod('delivery')}
+            className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+              fulfillmentMethod === 'delivery'
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100'
+                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className="block font-semibold">Delivery</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Bring it to my address</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFulfillmentMethod('collection')}
+            className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+              fulfillmentMethod === 'collection'
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100'
+                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className="block font-semibold">Collection</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">I will collect in store</span>
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm text-gray-700 dark:text-slate-200">Full name</span>
@@ -232,7 +268,7 @@ export function CheckoutPage() {
             />
             {fieldErrors.customerPhone && <p className="mt-1 text-xs text-red-600">{fieldErrors.customerPhone}</p>}
           </label>
-          <label className="block md:col-span-2">
+          {fulfillmentMethod === 'delivery' && <label className="block md:col-span-2">
             <span className="text-sm text-gray-700 dark:text-slate-200">Address</span>
             <input
               required
@@ -245,8 +281,8 @@ export function CheckoutPage() {
               }`}
             />
             {fieldErrors.deliveryAddress && <p className="mt-1 text-xs text-red-600">{fieldErrors.deliveryAddress}</p>}
-          </label>
-          <label className="block">
+          </label>}
+          {fulfillmentMethod === 'delivery' && <label className="block">
             <span className="text-sm text-gray-700 dark:text-slate-200">City</span>
             <input
               required
@@ -259,8 +295,8 @@ export function CheckoutPage() {
               }`}
             />
             {fieldErrors.deliveryCity && <p className="mt-1 text-xs text-red-600">{fieldErrors.deliveryCity}</p>}
-          </label>
-          <label className="block">
+          </label>}
+          {fulfillmentMethod === 'delivery' && <label className="block">
             <span className="text-sm text-gray-700 dark:text-slate-200">Postal code</span>
             <input
               required
@@ -275,9 +311,11 @@ export function CheckoutPage() {
             {fieldErrors.deliveryPostalCode && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.deliveryPostalCode}</p>
             )}
-          </label>
+          </label>}
           <label className="block md:col-span-2">
-            <span className="text-sm text-gray-700 dark:text-slate-200">Delivery notes</span>
+            <span className="text-sm text-gray-700 dark:text-slate-200">
+              {fulfillmentMethod === 'delivery' ? 'Delivery notes' : 'Collection notes'}
+            </span>
             <textarea
               value={deliveryNotes}
               onChange={(event) => setDeliveryNotes(event.target.value)}
@@ -307,8 +345,8 @@ export function CheckoutPage() {
             <span>€{getSubtotal().toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-gray-600 dark:text-slate-300">
-            <span>Delivery</span>
-            <span>€{Number(settings?.delivery_fee ?? deliveryFee).toFixed(2)}</span>
+            <span>{fulfillmentMethod === 'delivery' ? 'Delivery' : 'Collection'}</span>
+            <span>{fulfillmentMethod === 'delivery' ? `€${activeDeliveryFee.toFixed(2)}` : 'Free'}</span>
           </div>
           {settings && (
             <div className="flex justify-between text-gray-600 dark:text-slate-300">
@@ -318,7 +356,7 @@ export function CheckoutPage() {
           )}
           <div className="flex justify-between text-xl font-bold pt-2 border-t">
             <span>Total</span>
-            <span>€{getTotal().toFixed(2)}</span>
+            <span>€{orderTotal.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -353,8 +391,10 @@ export function CheckoutPage() {
             />
             <span className="text-2xl">💵</span>
             <div>
-              <p className="font-medium">Cash on Delivery</p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Pay when your order arrives</p>
+              <p className="font-medium">Cash</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                {fulfillmentMethod === 'delivery' ? 'Pay when your order arrives' : 'Pay when you collect'}
+              </p>
             </div>
           </label>
         </div>
@@ -371,8 +411,8 @@ export function CheckoutPage() {
         {loading
           ? 'Processing...'
           : paymentMethod === 'cash'
-            ? `Place order for €${getTotal().toFixed(2)}`
-            : `Pay €${getTotal().toFixed(2)}`}
+            ? `Place order for €${orderTotal.toFixed(2)}`
+            : `Pay €${orderTotal.toFixed(2)}`}
       </button>
     </div>
   );

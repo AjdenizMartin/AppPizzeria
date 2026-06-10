@@ -71,6 +71,7 @@ def test_print_agent_pull_and_complete(
     assert job["order"]["delivery_address"] == "Bastion Quay c33"
     assert job["order"]["delivery_city"] == "Athlone"
     assert job["order"]["delivery_postal_code"] == "N37XF78"
+    assert job["order"]["fulfillment_method"] == "delivery"
     assert job["order"]["payment_method"] == "card"
     assert job["order"]["subtotal"] == 22.0
     assert job["order"]["delivery_fee"] == 2.5
@@ -106,6 +107,7 @@ def test_print_agent_ticket_contains_kitchen_details():
                 "delivery_city": "Athlone",
                 "delivery_postal_code": "N37XF78",
                 "delivery_notes": "Ring bell twice",
+                "fulfillment_method": "delivery",
                 "payment_method": "cash",
                 "subtotal": 22.0,
                 "delivery_fee": 2.5,
@@ -125,14 +127,17 @@ def test_print_agent_ticket_contains_kitchen_details():
     )
 
     assert "Pizzeria Il Basilico" in ticket
+    assert "5 CENTRAL TERRACE" not in ticket
     assert "===DELIVERY ORDER===" in ticket
     assert "D0003" in ticket
     assert "Ref:42" in ticket
     assert "CASH" in ticket
     assert "CUSTOMER" in ticket
     assert "Angel Client" in ticket
-    assert "ADDRESS" in ticket
-    assert "Bastion Quay c33" in ticket
+    assert "DELIVERY ADDRESS" in ticket
+    assert "BASTION QUAY C33" in ticket
+    assert "ATHLONE" in ticket
+    assert "N37XF78" in ticket
     assert "NOTES" in ticket
     assert "Ring bell twice" in ticket
     assert "1 x FAMILY DEAL" in ticket
@@ -146,6 +151,50 @@ def test_print_agent_ticket_contains_kitchen_details():
     assert "Out:" in ticket
     assert "UNPAID" in ticket
     assert "System: Pizzeria App" in ticket
+
+
+def test_print_agent_ticket_supports_collection():
+    ticket = format_ticket(
+        {
+            "job_id": 8,
+            "attempt_count": 1,
+            "max_attempts": 3,
+            "order": {
+                "id": 43,
+                "daily_order_number": 4,
+                "status": "printing",
+                "customer_name": "Collection Client",
+                "customer_email": "client@example.com",
+                "customer_phone": "0899730419",
+                "delivery_address": "Collection",
+                "delivery_city": "",
+                "delivery_postal_code": "",
+                "delivery_notes": "Ready at 7",
+                "fulfillment_method": "collection",
+                "payment_method": "cash",
+                "subtotal": 22.0,
+                "delivery_fee": 0,
+                "total_price": 22.0,
+                "created_at": "2026-06-10T20:35:00",
+                "items": [
+                    {
+                        "product_id": 1,
+                        "product_name": "Family Deal",
+                        "quantity": 1,
+                        "price": 22.0,
+                        "extras": "",
+                    }
+                ],
+            },
+        }
+    )
+
+    assert "===COLLECTION ORDER===" in ticket
+    assert "C0004" in ticket
+    assert "CUSTOMER WILL COLLECT" in ticket
+    assert "DELIVERY ADDRESS" not in ticket
+    assert "Collection:" in ticket
+    assert "FREE" in ticket
 
 
 def test_print_agent_fail_marks_order_failed_after_last_attempt(

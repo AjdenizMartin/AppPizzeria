@@ -52,6 +52,7 @@ def _build_job_payload(db: Session, job) -> dict:
             "delivery_city": job.order.delivery_city,
             "delivery_postal_code": job.order.delivery_postal_code,
             "delivery_notes": job.order.delivery_notes or "",
+            "fulfillment_method": job.order.fulfillment_method,
             "payment_method": job.order.payment_method,
             "subtotal": subtotal,
             "delivery_fee": float(job.order.delivery_fee),

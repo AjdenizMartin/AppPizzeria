@@ -159,6 +159,7 @@ export const orderService = {
     customer_name: string;
     customer_email: string;
     customer_phone: string;
+    fulfillment_method: 'delivery' | 'collection';
     delivery_address: string;
     delivery_city: string;
     delivery_postal_code: string;
@@ -174,6 +175,7 @@ export const orderService = {
     customer_name: string;
     customer_email: string;
     customer_phone: string;
+    fulfillment_method: 'delivery' | 'collection';
     delivery_address: string;
     delivery_city: string;
     delivery_postal_code: string;

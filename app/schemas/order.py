@@ -30,9 +30,10 @@ class OrderCreate(BaseModel):
     customer_name: str = Field(min_length=1, max_length=200)
     customer_email: str = Field(min_length=3, max_length=255)
     customer_phone: str = Field(min_length=3, max_length=30)
-    delivery_address: str = Field(min_length=3, max_length=500)
-    delivery_city: str = Field(min_length=2, max_length=100)
-    delivery_postal_code: str = Field(min_length=2, max_length=20)
+    fulfillment_method: Literal["delivery", "collection"] = "delivery"
+    delivery_address: str = Field(default="", max_length=500)
+    delivery_city: str = Field(default="", max_length=100)
+    delivery_postal_code: str = Field(default="", max_length=20)
     delivery_notes: str = Field(default="", max_length=1000)
     payment_method: Literal["card", "cash"] = "card"
 
@@ -115,6 +116,7 @@ class OrderAdminRead(BaseModel):
     delivery_city: str
     delivery_postal_code: str
     delivery_notes: str | None = None
+    fulfillment_method: str
     payment_method: str
     delivery_fee: Decimal
     total_price: Decimal
@@ -140,6 +142,7 @@ class OrderTrackingRead(BaseModel):
     delivery_city: str
     delivery_postal_code: str
     delivery_notes: str | None = None
+    fulfillment_method: str
     payment_method: str
     delivery_fee: Decimal
     total_price: Decimal

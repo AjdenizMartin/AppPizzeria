@@ -26,6 +26,7 @@ class PrintAgentJobOrder(BaseModel):
     delivery_city: str
     delivery_postal_code: str
     delivery_notes: str | None = None
+    fulfillment_method: str = "delivery"
     payment_method: str
     subtotal: float
     delivery_fee: float

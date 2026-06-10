@@ -128,15 +128,27 @@ def send_order_confirmation_email(db, order: models.Order, *, payment_method: st
     tracking_link = _tracking_link(order)
     phone = settings.public_phone or ""
     whatsapp = settings.whatsapp_number or ""
+    is_collection = (order.fulfillment_method or "delivery") == "collection" or (
+        (order.delivery_address or "").strip().lower() == "collection"
+        and (order.delivery_city or "").strip().lower() == "store"
+    )
+    fulfillment_label = "Collection" if is_collection else "Delivery"
+    fulfillment_line = (
+        "Customer will collect in store"
+        if is_collection
+        else f"{order.delivery_address}, {order.delivery_city} {order.delivery_postal_code}"
+    )
+    subtotal = sum(float(item.price) * item.quantity for item in order.items)
+    display_total = subtotal if is_collection else float(order.total_price)
 
     text_body = (
         f"{business_name} - Order confirmation\n\n"
         f"Order ID: {order.id}\n"
         f"Status: {order.status}\n"
         f"Payment method: {payment_method}\n"
-        f"Delivery: {order.delivery_address}, {order.delivery_city} {order.delivery_postal_code}\n"
+        f"{fulfillment_label}: {fulfillment_line}\n"
         f"Delivery fee: EUR {float(order.delivery_fee):.2f}\n"
-        f"Total: EUR {float(order.total_price):.2f}\n\n"
+        f"Total: EUR {display_total:.2f}\n\n"
         f"Items:\n{_format_order_lines_text(order)}\n\n"
         f"Tracking: {tracking_link}\n"
         f"Phone: {phone}\n"
@@ -147,11 +159,7 @@ def send_order_confirmation_email(db, order: models.Order, *, payment_method: st
     if whatsapp:
         contact_text += f" · WhatsApp: {html.escape(whatsapp)}"
 
-    delivery_line = (
-        f"{html.escape(order.delivery_address)}, "
-        f"{html.escape(order.delivery_city)} "
-        f"{html.escape(order.delivery_postal_code)}"
-    )
+    delivery_line = html.escape(fulfillment_line)
     html_body = _email_shell(
         business_name=business_name,
         title="Order confirmed",
@@ -159,11 +167,11 @@ def send_order_confirmation_email(db, order: models.Order, *, payment_method: st
         body_html=f"""
           <p style="margin:0 0 12px;"><strong>Status:</strong> {html.escape(order.status)}<br/>
           <strong>Payment:</strong> {html.escape(payment_method)}</p>
-          <p style="margin:0 0 16px;"><strong>Delivery:</strong> {delivery_line}</p>
+          <p style="margin:0 0 16px;"><strong>{html.escape(fulfillment_label)}:</strong> {delivery_line}</p>
           <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
             {_format_order_lines_html(order)}
             <tr><td style="padding-top:10px;"><strong>Delivery fee</strong></td><td style="padding-top:10px;text-align:right;"><strong>EUR {float(order.delivery_fee):.2f}</strong></td></tr>  # noqa: E501
-            <tr><td style="padding-top:8px;border-top:1px solid #eee;"><strong>Total</strong></td><td style="padding-top:8px;border-top:1px solid #eee;text-align:right;"><strong>EUR {float(order.total_price):.2f}</strong></td></tr>  # noqa: E501
+            <tr><td style="padding-top:8px;border-top:1px solid #eee;"><strong>Total</strong></td><td style="padding-top:8px;border-top:1px solid #eee;text-align:right;"><strong>EUR {display_total:.2f}</strong></td></tr>  # noqa: E501
           </table>
           <p style="margin:16px 0 8px;"><a href="{html.escape(tracking_link)}" style="display:inline-block;background:#e55a08;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:700;">Track your order</a></p>  # noqa: E501
           <p style="margin:8px 0 0;color:#4b5563;font-size:13px;">{contact_text}</p>

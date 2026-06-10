@@ -42,20 +42,28 @@ def format_ticket(job: dict) -> str:
     title = os.getenv("PRINT_AGENT_TICKET_TITLE", "Pizzeria Il Basilico")
     display_order_number = order.get("daily_order_number", order["id"])
     order_code = _order_code(order, display_order_number)
-    order_type = "DELIVERY" if order_code.startswith("D") else "TAKEAWAY"
+    fulfillment_method = _fulfillment_method(order)
+    order_type = "COLLECTION" if fulfillment_method == "collection" else "DELIVERY"
     payment_status = "UNPAID" if payment_method == "CASH" else "PAID ONLINE"
     item_count = sum(int(item.get("quantity", 0)) for item in order.get("items", []))
+    subtotal = float(order.get("subtotal", 0) or 0)
+    display_total = subtotal if fulfillment_method == "collection" else order["total_price"]
 
     lines = [
         "",
         title[:width].center(width),
         _restaurant_phone(width),
-        *_restaurant_address(width),
         "-" * width,
         f"==={order_type} ORDER===".center(width),
         _two_column(order_code, payment_method, width),
         created_at,
         "",
+        *(
+            ["DELIVERY ADDRESS".center(width), *_delivery_address_lines(order, width), ""]
+            if fulfillment_method == "delivery"
+            else ["COLLECTION".center(width), "CUSTOMER WILL COLLECT".center(width), ""]
+        ),
+        "-" * width,
         "CUSTOMER".center(width),
         _safe_text(order.get("customer_name")),
         _safe_text(order.get("customer_phone")),
@@ -64,14 +72,6 @@ def format_ticket(job: dict) -> str:
     customer_email = str(order.get("customer_email") or "").strip()
     if customer_email:
         lines.append(customer_email)
-
-    lines.extend(["", "ADDRESS".center(width)])
-    address = [
-        _safe_text(order.get("delivery_address")),
-        _safe_text(order.get("delivery_city")),
-        _safe_text(order.get("delivery_postal_code")),
-    ]
-    lines.extend(line for line in address if line)
 
     delivery_notes = str(order.get("delivery_notes") or "").strip()
     if delivery_notes:
@@ -88,8 +88,10 @@ def format_ticket(job: dict) -> str:
             f"Item {item_count}",
             "-" * width,
             _money_line("Subtotal", order.get("subtotal", 0), width),
-            _money_line("Delivery Charge", order.get("delivery_fee", 0), width),
-            _total_line(order["total_price"], width),
+            _two_column("Collection:", "FREE", width)
+            if fulfillment_method == "collection"
+            else _money_line("Delivery Charge", order.get("delivery_fee", 0), width),
+            _total_line(display_total, width),
             "-" * width,
             _two_column("In:", "Out:", width),
             _two_column(created_time, "ASAP", width),
@@ -99,7 +101,7 @@ def format_ticket(job: dict) -> str:
             f"Ref:{order['id']}",
             f"System: {os.getenv('PRINT_AGENT_SYSTEM_NAME', 'Pizzeria App')}",
             payment_status,
-            _money_line("Due", order["total_price"] if payment_status == "UNPAID" else 0, width),
+            _money_line("Due", display_total if payment_status == "UNPAID" else 0, width),
             "-" * width,
             f"Attempt: {job['attempt_count']}/{job['max_attempts']}",
             f"Printed: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
@@ -134,17 +136,35 @@ def _restaurant_phone(width: int) -> str | None:
     return f"(T): {phone}"[:width].center(width)
 
 
-def _restaurant_address(width: int) -> list[str]:
-    raw = os.getenv(
-        "PRINT_AGENT_TICKET_ADDRESS",
-        "5 CENTRAL TERRACE|NORTHGATE|STREET ATHLONE|CO. WESTMEATH|N37 P2R8",
-    )
-    return [line.strip()[:width].center(width) for line in raw.split("|") if line.strip()]
-
-
 def _order_code(order: dict, daily_order_number: int) -> str:
-    prefix = "D" if float(order.get("delivery_fee") or 0) > 0 else "T"
+    fulfillment_method = _fulfillment_method(order)
+    prefix = "C" if fulfillment_method == "collection" else "D"
     return f"{prefix}{int(daily_order_number):04d}"
+
+
+def _fulfillment_method(order: dict) -> str:
+    method = str(order.get("fulfillment_method") or "delivery").lower()
+    if method == "collection":
+        return "collection"
+    address = str(order.get("delivery_address") or "").strip().lower()
+    city = str(order.get("delivery_city") or "").strip().lower()
+    postal_code = str(order.get("delivery_postal_code") or "").strip().lower()
+    if address == "collection" and city == "store" and postal_code in {"n/a", "na"}:
+        return "collection"
+    return "delivery"
+
+
+def _delivery_address_lines(order: dict, width: int) -> list[str]:
+    address = [
+        _safe_text(order.get("delivery_address")),
+        _safe_text(order.get("delivery_city")),
+        _safe_text(order.get("delivery_postal_code")),
+    ]
+    lines: list[str] = []
+    for part in address:
+        if part:
+            lines.extend(line.upper().center(width) for line in _wrap_lines(part, width))
+    return lines or ["NO DELIVERY ADDRESS".center(width)]
 
 
 def _ticket_width() -> int:

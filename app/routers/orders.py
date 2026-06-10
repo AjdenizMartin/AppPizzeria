@@ -120,6 +120,7 @@ def get_order_tracking(
             "delivery_city": order.delivery_city,
             "delivery_postal_code": order.delivery_postal_code,
             "delivery_notes": order.delivery_notes,
+            "fulfillment_method": order.fulfillment_method,
             "payment_method": order.payment_method,
             "delivery_fee": order.delivery_fee,
             "total_price": order.total_price,

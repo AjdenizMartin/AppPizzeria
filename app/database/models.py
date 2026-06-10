@@ -44,6 +44,7 @@ class Order(Base):
     delivery_city = Column(String(100), nullable=False)
     delivery_postal_code = Column(String(20), nullable=False)
     delivery_notes = Column(String(1000), nullable=True)
+    fulfillment_method = Column(String(20), nullable=False, default="delivery")
     payment_method = Column(String(20), nullable=False, default="card")
     delivery_fee = Column(Numeric(10, 2), nullable=False, default=0)
     status = Column(String(50), default="created")

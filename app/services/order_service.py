@@ -49,11 +49,20 @@ def create_order(
     delivery_city = payload.delivery_city.strip()
     delivery_postal_code = payload.delivery_postal_code.strip()
     delivery_notes = payload.delivery_notes.strip()
+    fulfillment_method = payload.fulfillment_method
+    if delivery_address.lower() == "collection" and delivery_city.lower() == "store":
+        fulfillment_method = "collection"
 
     if not customer_name or not customer_email or not customer_phone:
         raise ValueError("Customer name, email and phone are required")
-    if not delivery_address or not delivery_city or not delivery_postal_code:
+    if fulfillment_method == "delivery" and (
+        not delivery_address or not delivery_city or not delivery_postal_code
+    ):
         raise ValueError("Delivery address, city and postal code are required")
+    if fulfillment_method == "collection":
+        delivery_address = "Collection"
+        delivery_city = ""
+        delivery_postal_code = ""
 
     try:
         settings = get_or_create_settings(db)
@@ -73,8 +82,13 @@ def create_order(
             delivery_city=delivery_city,
             delivery_postal_code=delivery_postal_code,
             delivery_notes=delivery_notes or None,
+            fulfillment_method=fulfillment_method,
             payment_method=payload.payment_method,
-            delivery_fee=Decimal(str(settings.delivery_fee)),
+            delivery_fee=(
+                Decimal(str(settings.delivery_fee))
+                if fulfillment_method == "delivery"
+                else Decimal("0")
+            ),
         )
         db.add(order)
         db.flush()
@@ -112,7 +126,7 @@ def create_order(
                 f"Minimum order amount is EUR {float(settings.minimum_order_amount):.2f}"
             )
 
-        order.total_price = total + Decimal(str(settings.delivery_fee))
+        order.total_price = total + Decimal(str(order.delivery_fee))
         add_status_event(
             db,
             order=order,
@@ -217,7 +231,7 @@ def list_orders(
     limit: int = 50,
     offset: int = 0,
 ) -> list[models.Order]:
-    return list_recent_orders(
+    orders = list_recent_orders(
         db,
         status=status,
         date_from=date_from,
@@ -227,6 +241,12 @@ def list_orders(
         limit=limit,
         offset=offset,
     )
+    changed = False
+    for order in orders:
+        changed = _normalize_collection_order(order) or changed
+    if changed:
+        db.commit()
+    return orders
 
 
 def get_order_for_tracking(
@@ -252,7 +272,33 @@ def get_order_for_tracking(
     if not email_match and not phone_match:
         raise PermissionError("Order not found")
 
+    if _normalize_collection_order(order):
+        db.commit()
+        db.refresh(order)
+
     return order
+
+
+def _normalize_collection_order(order: models.Order) -> bool:
+    is_collection_placeholder = (
+        (order.delivery_address or "").strip().lower() == "collection"
+        and (order.delivery_city or "").strip().lower() == "store"
+    )
+    if not is_collection_placeholder:
+        return False
+
+    subtotal = sum(Decimal(str(item.price)) * item.quantity for item in order.items)
+    changed = False
+    if order.fulfillment_method != "collection":
+        order.fulfillment_method = "collection"
+        changed = True
+    if order.delivery_fee != Decimal("0"):
+        order.delivery_fee = Decimal("0")
+        changed = True
+    if order.total_price != subtotal:
+        order.total_price = subtotal
+        changed = True
+    return changed
 
 
 def update_order_status(
