@@ -28,6 +28,8 @@ RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
 COPY --from=frontend-builder /build/frontend-react/dist ./frontend-react/dist
 
+RUN chown -R appuser:appuser /app && chmod -R u=rwX,go=rX /app
+
 USER appuser
 
 EXPOSE 8000
