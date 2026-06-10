@@ -26,7 +26,7 @@ def upgrade() -> None:
             "products",
             sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         )
-    op.execute(sa.text("UPDATE products SET is_active = 1 WHERE is_active IS NULL"))
+    op.execute(sa.text("UPDATE products SET is_active = true WHERE is_active IS NULL"))
 
 
 def downgrade() -> None:
