@@ -12,6 +12,12 @@ from app.services import file_service
 
 
 @pytest.fixture(autouse=True)
+def test_stripe_config(monkeypatch) -> None:
+    monkeypatch.setattr("app.services.stripe_service.STRIPE_KEY", "sk_test_dummy")
+    monkeypatch.setattr("app.services.stripe_service.STRIPE_WEBHOOK_SECRET", "")
+
+
+@pytest.fixture(autouse=True)
 def product_images_dir(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(file_service, "PRODUCT_IMAGES_DIR", tmp_path / "product-images")
 
