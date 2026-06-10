@@ -124,20 +124,28 @@ def test_print_agent_ticket_contains_kitchen_details():
         }
     )
 
-    assert "ORDER #3" in ticket
-    assert "Internal order ID: 42" in ticket
+    assert "Pizzeria Il Basilico" in ticket
+    assert "===DELIVERY ORDER===" in ticket
+    assert "D0003" in ticket
+    assert "Ref:42" in ticket
     assert "CASH" in ticket
     assert "CUSTOMER" in ticket
     assert "Angel Client" in ticket
-    assert "DELIVERY" in ticket
+    assert "ADDRESS" in ticket
     assert "Bastion Quay c33" in ticket
     assert "NOTES" in ticket
     assert "Ring bell twice" in ticket
-    assert "1x Family Deal (extra cheese)" in ticket
+    assert "1 x FAMILY DEAL" in ticket
+    assert "extra cheese" in ticket
     assert "Subtotal:" in ticket
-    assert "GBP 22.00" in ticket
+    assert "€22.00" in ticket
+    assert "Delivery Charge:" in ticket
     assert "TOTAL:" in ticket
-    assert "GBP 24.50" in ticket
+    assert "€24.50" in ticket
+    assert "In:" in ticket
+    assert "Out:" in ticket
+    assert "UNPAID" in ticket
+    assert "System: Pizzeria App" in ticket
 
 
 def test_print_agent_fail_marks_order_failed_after_last_attempt(
