@@ -1,29 +1,43 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useProducts } from '../hooks/useProducts';
+import { useCart } from '../hooks/useCart';
 import { ProductCard } from '../components/ProductCard';
+import { PizzaGroupCard } from '../components/PizzaGroupCard';
+import { PizzaSizeModal } from '../components/PizzaSizeModal';
 import { CategoryFilter } from '../components/CategoryFilter';
 import { restaurantService } from '../services/api';
-import type { RestaurantSettings } from '../types';
+import type { Product, RestaurantSettings } from '../types';
+import {
+  buildPublicMenuItems,
+  menuItemMatchesQuery,
+  type PizzaGroup,
+} from '../utils/productGrouping';
 
 interface HomePageProps {
   onImageError?: (e: SyntheticEvent<HTMLImageElement>) => void;
 }
 
 export function HomePage({ onImageError }: HomePageProps) {
-  const { products, loading, error, getCategories, search } = useProducts();
+  const { products, loading, error, getCategories } = useProducts();
+  const { addItem } = useCart();
   const availableCount = products.filter((product) => product.is_available).length;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
+  const [selectedPizzaGroup, setSelectedPizzaGroup] = useState<PizzaGroup | null>(null);
 
   const categories = getCategories();
+  const menuItems = buildPublicMenuItems(products);
+  const filteredMenuItems = menuItems.filter((item) => {
+    const matchesCategory =
+      !selectedCategory ||
+      (item.type === 'product'
+        ? item.product.category === selectedCategory
+        : item.group.category === selectedCategory);
 
-  const filteredProducts = searchQuery
-    ? search(searchQuery)
-    : selectedCategory
-      ? products.filter((p) => p.category === selectedCategory)
-      : products;
+    return matchesCategory && menuItemMatchesQuery(item, searchQuery);
+  });
 
   const handleCategorySelect = useCallback((category: string | null) => {
     setSelectedCategory(category);
@@ -36,6 +50,13 @@ export function HomePage({ onImageError }: HomePageProps) {
       setSelectedCategory(null);
     }
   }, []);
+
+  const handleAddPizza = useCallback(
+    (product: Product, quantity: number) => {
+      addItem(product, quantity);
+    },
+    [addItem]
+  );
 
   useEffect(() => {
     restaurantService.getPublicSettings().then(setSettings).catch(() => {});
@@ -114,21 +135,40 @@ export function HomePage({ onImageError }: HomePageProps) {
         onSelect={handleCategorySelect}
       />
 
-      {filteredProducts.length === 0 ? (
+      {filteredMenuItems.length === 0 ? (
         <div className="text-center py-12 text-gray-500 dark:text-slate-400">
           <p className="text-4xl mb-4">🔍</p>
           <p>No products found</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onImageError={onImageError}
-            />
-          ))}
+          {filteredMenuItems.map((item) =>
+            item.type === 'product' ? (
+              <ProductCard
+                key={item.product.id}
+                product={item.product}
+                onImageError={onImageError}
+              />
+            ) : (
+              <PizzaGroupCard
+                key={item.group.key}
+                group={item.group}
+                onAdd={setSelectedPizzaGroup}
+                onImageError={onImageError}
+              />
+            )
+          )}
         </div>
+      )}
+
+      {selectedPizzaGroup && (
+        <PizzaSizeModal
+          key={selectedPizzaGroup.key}
+          group={selectedPizzaGroup}
+          open
+          onClose={() => setSelectedPizzaGroup(null)}
+          onAddToCart={handleAddPizza}
+        />
       )}
     </div>
   );

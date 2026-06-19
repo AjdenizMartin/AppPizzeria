@@ -7,7 +7,7 @@ const DELIVERY_FEE = 2.5;
 
 type CartContextValue = {
   items: CartItem[];
-  addItem: (product: Product) => void;
+  addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
   updateExtras: (productId: number, extras: string) => void;
@@ -31,15 +31,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const addItem = useCallback((product: Product) => {
+  const addItem = useCallback((product: Product, quantity = 1) => {
+    const safeQuantity = Math.max(1, Math.floor(quantity));
     setItems((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id ? { ...item, quantity: item.quantity + safeQuantity } : item
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...product, quantity: safeQuantity }];
     });
   }, []);
 
