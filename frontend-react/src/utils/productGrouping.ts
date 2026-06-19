@@ -2,7 +2,7 @@ import type { Product } from '../types';
 
 const GROUPABLE_PIZZA_CATEGORIES = new Set(['Pizzas', 'Gourmet Pizzas']);
 const EXCLUDED_NAME_PATTERN = /\b(meal|deal)\b/i;
-const SIZE_PATTERN = /\s*(?:-\s*)?(09|9|12|16)\s*"\s*$/i;
+const SIZE_PATTERN = /\s*(?:[-–—]\s*)?\(?\s*(09|9|12|16)\s*(?:["”″]|in(?:ch(?:es)?)?)?\s*\)?\s*$/i;
 const SIZE_ORDER: Record<string, number> = {
   '9"': 0,
   '12"': 1,
