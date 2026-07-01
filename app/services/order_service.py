@@ -1,3 +1,5 @@
+import logging
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 
@@ -19,6 +21,8 @@ from app.services.printing_service import (
 )
 from app.services.restaurant_service import get_or_create_settings, is_restaurant_open
 
+logger = logging.getLogger(__name__)
+
 ALLOWED_ORDER_TRANSITIONS = {
     "created": {"paid", "cancelled"},
     "pending": {"paid", "cancelled"},
@@ -31,6 +35,31 @@ ALLOWED_ORDER_TRANSITIONS = {
     "cancelled": set(),
     "delivered": set(),
 }
+
+
+def _send_order_email_safely(
+    *,
+    order: models.Order,
+    email_type: str,
+    send: Callable[[], bool],
+) -> bool:
+    try:
+        sent = send()
+    except Exception:
+        logger.exception(
+            "order_email_failed order_id=%s email_type=%s",
+            order.id,
+            email_type,
+        )
+        return False
+
+    if not sent:
+        logger.warning(
+            "order_email_not_sent order_id=%s email_type=%s",
+            order.id,
+            email_type,
+        )
+    return sent
 
 
 def create_order(
@@ -178,7 +207,11 @@ def create_cash_checkout_order(
     except Exception:
         db.rollback()
         raise
-    send_order_confirmation_email(db, order, payment_method="cash")
+    _send_order_email_safely(
+        order=order,
+        email_type="confirmation_cash",
+        send=lambda: send_order_confirmation_email(db, order, payment_method="cash"),
+    )
 
     return {
         "order_id": order.id,
@@ -216,7 +249,11 @@ def mark_order_paid_after_checkout(db: Session, *, order_id: int) -> models.Orde
     )
     db.commit()
     db.refresh(order)
-    send_order_confirmation_email(db, order, payment_method="card")
+    _send_order_email_safely(
+        order=order,
+        email_type="confirmation_card",
+        send=lambda: send_order_confirmation_email(db, order, payment_method="card"),
+    )
     return order
 
 
@@ -350,9 +387,17 @@ def update_order_status(
     if refreshed is None:
         raise LookupError("Order not found after update")
     if normalized_next == "ready":
-        send_order_ready_email(db, refreshed)
+        _send_order_email_safely(
+            order=refreshed,
+            email_type="ready",
+            send=lambda: send_order_ready_email(db, refreshed),
+        )
     elif normalized_next == "cancelled":
-        send_order_cancelled_email(db, refreshed)
+        _send_order_email_safely(
+            order=refreshed,
+            email_type="cancelled",
+            send=lambda: send_order_cancelled_email(db, refreshed),
+        )
     return refreshed
 
 

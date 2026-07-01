@@ -1,5 +1,5 @@
 import type { SyntheticEvent } from 'react';
-import { buildApiUrl } from '../services/api';
+import { MenuItemImage } from './MenuItemImage';
 import type { PizzaGroup } from '../utils/productGrouping';
 
 interface PizzaGroupCardProps {
@@ -8,20 +8,17 @@ interface PizzaGroupCardProps {
   onImageError?: (e: SyntheticEvent<HTMLImageElement>) => void;
 }
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="%23f4ede2"><rect width="400" height="300"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="%235f4336" text-anchor="middle" dy=".3em">Pizzeria</text></svg>'
-);
-
 export function PizzaGroupCard({ group, onAdd, onImageError }: PizzaGroupCardProps) {
   const { displayProduct } = group;
 
   return (
     <div className="bg-[#fffaf3] dark:bg-slate-900 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-[#e8dbc8] dark:border-slate-700">
-      <img
-        src={displayProduct.image_url ? buildApiUrl(displayProduct.image_url) : PLACEHOLDER_IMAGE}
-        alt={group.name}
+      <MenuItemImage
+        imageUrl={displayProduct.image_url}
+        name={group.name}
+        category={group.category}
         className="w-full h-40 object-cover"
-        onError={onImageError}
+        onImageError={onImageError}
       />
       <div className="p-4">
         <h3 className="font-semibold text-lg text-gray-900 dark:text-slate-100">{group.name}</h3>

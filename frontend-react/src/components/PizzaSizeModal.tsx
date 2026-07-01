@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { buildApiUrl } from '../services/api';
+import { MenuItemImage } from './MenuItemImage';
 import type { Product } from '../types';
 import type { PizzaGroup } from '../utils/productGrouping';
 
@@ -10,10 +10,6 @@ interface PizzaSizeModalProps {
   onAddToCart: (product: Product, quantity: number) => void;
 }
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="%23f4ede2"><rect width="400" height="300"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="%235f4336" text-anchor="middle" dy=".3em">Pizzeria</text></svg>'
-);
-
 export function PizzaSizeModal({ group, open, onClose, onAddToCart }: PizzaSizeModalProps) {
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -22,9 +18,6 @@ export function PizzaSizeModal({ group, open, onClose, onAddToCart }: PizzaSizeM
 
   const selectedOption = group.sizes.find((option) => option.product.id === selectedProductId);
   const addTotal = selectedOption ? Number(selectedOption.product.price) * quantity : 0;
-  const imageUrl = group.displayProduct.image_url
-    ? buildApiUrl(group.displayProduct.image_url)
-    : PLACEHOLDER_IMAGE;
 
   const handleAdd = () => {
     if (!selectedOption || !selectedOption.product.is_available) return;
@@ -47,7 +40,13 @@ export function PizzaSizeModal({ group, open, onClose, onAddToCart }: PizzaSizeM
         className="relative w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-[#fffaf3] shadow-2xl dark:bg-slate-900 sm:max-w-lg sm:rounded-2xl border border-[#e8dbc8] dark:border-slate-700"
       >
         <div className="relative">
-          <img src={imageUrl} alt={group.name} className="h-48 w-full object-cover" />
+          <MenuItemImage
+            imageUrl={group.displayProduct.image_url}
+            name={group.name}
+            category={group.category}
+            className="h-48 w-full object-cover"
+            loading="eager"
+          />
           <button
             type="button"
             onClick={onClose}

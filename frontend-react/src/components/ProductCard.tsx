@@ -1,16 +1,12 @@
 import type { Product } from '../types';
 import type { SyntheticEvent } from 'react';
 import { useCart } from '../hooks/useCart';
-import { buildApiUrl } from '../services/api';
+import { MenuItemImage } from './MenuItemImage';
 
 interface ProductCardProps {
   product: Product;
   onImageError?: (e: SyntheticEvent<HTMLImageElement>) => void;
 }
-
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="%23f4ede2"><rect width="400" height="300"/><text x="50%" y="50%" font-family="Arial" font-size="24" fill="%235f4336" text-anchor="middle" dy=".3em">Pizzeria</text></svg>'
-);
 
 export function ProductCard({ product, onImageError }: ProductCardProps) {
   const { addItem } = useCart();
@@ -22,11 +18,12 @@ export function ProductCard({ product, onImageError }: ProductCardProps) {
 
   return (
     <div className="bg-[#fffaf3] dark:bg-slate-900 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-[#e8dbc8] dark:border-slate-700">
-      <img
-        src={product.image_url ? buildApiUrl(product.image_url) : PLACEHOLDER_IMAGE}
-        alt={product.name}
+      <MenuItemImage
+        imageUrl={product.image_url}
+        name={product.name}
+        category={product.category}
         className="w-full h-40 object-cover"
-        onError={onImageError}
+        onImageError={onImageError}
       />
       <div className="p-4">
         <h3 className="font-semibold text-lg text-gray-900 dark:text-slate-100">{product.name}</h3>

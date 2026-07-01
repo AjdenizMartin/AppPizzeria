@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.database import models
@@ -117,6 +119,61 @@ def test_stripe_webhook_marks_accepted_and_enqueues_print_job(
     assert len(order.print_jobs) == 1
     assert order.print_jobs[0].status == "pending"
     assert order.print_jobs[0].idempotency_key == f"order-{order_id}-stripe-paid"
+
+
+def test_stripe_webhook_survives_confirmation_email_failure(
+    client, db_session: Session, monkeypatch, caplog
+):
+    product = models.Product(
+        name="Webhook Email Failure Pizza",
+        price=14.0,
+        category="Pizzas",
+        description="Webhook item",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    create_order_response = client.post(
+        "/orders",
+        json=_order_payload(product.id),
+    )
+    assert create_order_response.status_code == 201
+    order_id = create_order_response.json()["order_id"]
+
+    def fake_construct_event(payload, signature):
+        assert signature == "test-signature"
+        return {
+            "type": "checkout.session.completed",
+            "data": {"object": {"metadata": {"order_id": str(order_id)}}},
+        }
+
+    def broken_confirmation_email(db, order, *, payment_method):
+        raise RuntimeError("SMTP down")
+
+    monkeypatch.setattr("app.routers.payments.construct_webhook_event", fake_construct_event)
+    monkeypatch.setattr(
+        "app.services.order_service.send_order_confirmation_email",
+        broken_confirmation_email,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.services.order_service"):
+        webhook_response = client.post(
+            "/stripe/webhook",
+            data=b'{"type":"checkout.session.completed"}',
+            headers={"Stripe-Signature": "test-signature"},
+        )
+
+    assert webhook_response.status_code == 200
+    assert webhook_response.json() == {"ok": True}
+    assert "order_email_failed" in caplog.text
+
+    db_session.expire_all()
+    order = db_session.get(models.Order, order_id)
+    assert order is not None
+    assert order.status == "accepted"
+    assert len(order.print_jobs) == 1
+    assert order.print_jobs[0].status == "pending"
 
 
 def test_stripe_webhook_rejects_missing_secret_in_production(client, monkeypatch):

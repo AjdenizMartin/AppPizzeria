@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.database import models
@@ -156,6 +158,47 @@ def test_cash_checkout_creates_accepted_order_and_print_job(
     assert payload["total"] == 24.5
     assert payload["status"] == "accepted"
     assert payload["payment_method"] == "cash"
+
+    admin_orders_response = client.get("/admin/orders", headers=admin_auth_headers)
+    assert admin_orders_response.status_code == 200
+    latest_order = admin_orders_response.json()[0]
+    assert latest_order["id"] == payload["order_id"]
+    assert latest_order["status"] == "accepted"
+    assert len(latest_order["print_jobs"]) == 1
+    assert latest_order["print_jobs"][0]["status"] == "pending"
+
+
+def test_cash_checkout_survives_confirmation_email_failure(
+    client, db_session: Session, admin_auth_headers, monkeypatch, caplog
+):
+    product = models.Product(
+        name="Email Failure Pizza",
+        price=11.0,
+        category="Pizzas",
+        description="Cash order item",
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+
+    def broken_confirmation_email(db, order, *, payment_method):
+        raise RuntimeError("SMTP down")
+
+    monkeypatch.setattr(
+        "app.services.order_service.send_order_confirmation_email",
+        broken_confirmation_email,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.services.order_service"):
+        response = client.post(
+            "/orders/cash-checkout",
+            json={**_order_payload(product.id), "payment_method": "cash"},
+        )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "accepted"
+    assert "order_email_failed" in caplog.text
 
     admin_orders_response = client.get("/admin/orders", headers=admin_auth_headers)
     assert admin_orders_response.status_code == 200
