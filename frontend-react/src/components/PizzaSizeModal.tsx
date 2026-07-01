@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MenuItemImage } from './MenuItemImage';
+import { ProductImage } from './ProductImage';
 import type { Product } from '../types';
 import type { PizzaGroup } from '../utils/productGrouping';
 
@@ -40,9 +40,9 @@ export function PizzaSizeModal({ group, open, onClose, onAddToCart }: PizzaSizeM
         className="relative w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-[#fffaf3] shadow-2xl dark:bg-slate-900 sm:max-w-lg sm:rounded-2xl border border-[#e8dbc8] dark:border-slate-700"
       >
         <div className="relative">
-          <MenuItemImage
-            imageUrl={group.displayProduct.image_url}
-            name={group.name}
+          <ProductImage
+            src={group.displayProduct.image_url}
+            alt={group.name}
             category={group.category}
             className="h-48 w-full object-cover"
             loading="eager"

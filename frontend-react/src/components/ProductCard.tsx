@@ -1,7 +1,7 @@
 import type { Product } from '../types';
 import type { SyntheticEvent } from 'react';
 import { useCart } from '../hooks/useCart';
-import { MenuItemImage } from './MenuItemImage';
+import { ProductImage } from './ProductImage';
 
 interface ProductCardProps {
   product: Product;
@@ -18,9 +18,9 @@ export function ProductCard({ product, onImageError }: ProductCardProps) {
 
   return (
     <div className="bg-[#fffaf3] dark:bg-slate-900 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-[#e8dbc8] dark:border-slate-700">
-      <MenuItemImage
-        imageUrl={product.image_url}
-        name={product.name}
+      <ProductImage
+        src={product.image_url}
+        alt={product.name}
         category={product.category}
         className="w-full h-40 object-cover"
         onImageError={onImageError}

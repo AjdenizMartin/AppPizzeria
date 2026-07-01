@@ -1,5 +1,5 @@
 import type { SyntheticEvent } from 'react';
-import { MenuItemImage } from './MenuItemImage';
+import { ProductImage } from './ProductImage';
 import type { PizzaGroup } from '../utils/productGrouping';
 
 interface PizzaGroupCardProps {
@@ -13,9 +13,9 @@ export function PizzaGroupCard({ group, onAdd, onImageError }: PizzaGroupCardPro
 
   return (
     <div className="bg-[#fffaf3] dark:bg-slate-900 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow border border-[#e8dbc8] dark:border-slate-700">
-      <MenuItemImage
-        imageUrl={displayProduct.image_url}
-        name={group.name}
+      <ProductImage
+        src={displayProduct.image_url}
+        alt={group.name}
         category={group.category}
         className="w-full h-40 object-cover"
         onImageError={onImageError}

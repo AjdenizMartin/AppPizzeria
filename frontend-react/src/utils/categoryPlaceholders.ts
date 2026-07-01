@@ -3,16 +3,50 @@ type PlaceholderInput = {
   category: string;
 };
 
-const CATEGORY_STYLES: Record<string, { from: string; to: string; accent: string; label: string }> = {
-  pizzas: { from: '#8f2d17', to: '#f59e0b', accent: '#fff3c4', label: 'Pizza' },
-  'gourmet pizzas': { from: '#5f2f14', to: '#d97706', accent: '#fde68a', label: 'Gourmet Pizza' },
-  burgers: { from: '#7c2d12', to: '#ea580c', accent: '#ffedd5', label: 'Burger' },
-  'burger meals': { from: '#78350f', to: '#f97316', accent: '#fed7aa', label: 'Burger Meal' },
-  chips: { from: '#854d0e', to: '#eab308', accent: '#fef3c7', label: 'Chips' },
-  'soft drinks': { from: '#0f766e', to: '#38bdf8', accent: '#ccfbf1', label: 'Drink' },
-  desserts: { from: '#7e22ce', to: '#ec4899', accent: '#fce7f3', label: 'Dessert' },
-  'meal deals': { from: '#991b1b', to: '#f97316', accent: '#fee2e2', label: 'Meal Deal' },
+type PlaceholderStyle = {
+  from: string;
+  to: string;
+  accent: string;
+  label: string;
 };
+
+const FALLBACK_STYLE: PlaceholderStyle = {
+  from: '#5f4336',
+  to: '#c26b15',
+  accent: '#f4ede2',
+  label: 'Freshly Made',
+};
+
+const CATEGORY_STYLES: Array<{ pattern: RegExp; style: PlaceholderStyle }> = [
+  {
+    pattern: /gourmet|pizza/i,
+    style: { from: '#8f2d17', to: '#f59e0b', accent: '#fff3c4', label: 'Fresh Pizza' },
+  },
+  {
+    pattern: /burger/i,
+    style: { from: '#7c2d12', to: '#ea580c', accent: '#ffedd5', label: 'Fresh Burger' },
+  },
+  {
+    pattern: /chip|side|garlic|extra/i,
+    style: { from: '#854d0e', to: '#eab308', accent: '#fef3c7', label: 'Fresh Sides' },
+  },
+  {
+    pattern: /drink|soft|coke|fanta|water|7\s*-?\s*up/i,
+    style: { from: '#0f766e', to: '#38bdf8', accent: '#ccfbf1', label: 'Cold Drinks' },
+  },
+  {
+    pattern: /meal|deal|combo/i,
+    style: { from: '#991b1b', to: '#f97316', accent: '#fee2e2', label: 'Meal Deal' },
+  },
+  {
+    pattern: /sauce/i,
+    style: { from: '#7f1d1d', to: '#dc2626', accent: '#fee2e2', label: 'Sauces' },
+  },
+  {
+    pattern: /dessert|sweet|cake|cookie/i,
+    style: { from: '#7e22ce', to: '#ec4899', accent: '#fce7f3', label: 'Desserts' },
+  },
+];
 
 function escapeSvgText(value: string) {
   return value
@@ -23,12 +57,7 @@ function escapeSvgText(value: string) {
 }
 
 function getStyle(category: string) {
-  return CATEGORY_STYLES[category.trim().toLowerCase()] ?? {
-    from: '#5f4336',
-    to: '#c26b15',
-    accent: '#f4ede2',
-    label: category || 'Menu Item',
-  };
+  return CATEGORY_STYLES.find((entry) => entry.pattern.test(category))?.style ?? FALLBACK_STYLE;
 }
 
 function getInitials(name: string) {
